@@ -1,7 +1,7 @@
 Summary: Security module for the Apache HTTP Server
 Name: mod_security 
-Version: 2.5.12
-Release: 3%{?dist}
+Version: 2.6.1
+Release: 1%{?dist}
 License: GPLv2
 URL: http://www.modsecurity.org/
 Group: System Environment/Daemons
@@ -20,8 +20,7 @@ as a powerful umbrella - shielding web applications from attacks.
 %setup -q -n modsecurity-apache_%{version}
 
 %build
-find doc rules/util -type f -exec chmod -x {} \;
-cd apache2
+find doc -type f -exec chmod -x {} \;
 %configure
 make %{_smp_mflags}
 make %{_smp_mflags} mlogc
@@ -29,15 +28,15 @@ make %{_smp_mflags} mlogc
 %install
 rm -rf %{buildroot}
 install -D -m755 apache2/.libs/mod_security2.so %{buildroot}/%{_libdir}/httpd/modules/mod_security2.so
-install -Dp tools/mlogc %{buildroot}/%{_bindir}/mlogc
-install -D -m644 apache2/mlogc-src/mlogc-default.conf %{buildroot}/%{_sysconfdir}/mlogc.conf
+install -Dp mlogc/mlogc %{buildroot}/%{_bindir}/mlogc
+install -D -m644 mlogc/mlogc-default.conf %{buildroot}/%{_sysconfdir}/mlogc.conf
 
 %clean
 rm -rf %{buildroot}
 
 %files
 %defattr (-,root,root)
-%doc rules/util CHANGES LICENSE README.* modsecurity* doc MODSECURITY_LICENSING_EXCEPTION
+%doc CHANGES LICENSE README.* modsecurity* doc
 %{_libdir}/httpd/modules/mod_security2.so
 %{_bindir}/mlogc
 %config(noreplace) %{_sysconfdir}/mlogc.conf

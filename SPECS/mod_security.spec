@@ -6,8 +6,6 @@ License: GPLv2
 URL: http://www.modsecurity.org/
 Group: System Environment/Daemons
 Source: http://www.modsecurity.org/download/modsecurity-apache_%{version}.tar.gz
-Source1: mod_security.conf
-Source2: modsecurity_localrules.conf
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Requires: httpd httpd-mmn = %([ -a %{_includedir}/httpd/.mmn ] && cat %{_includedir}/httpd/.mmn || echo missing)
 BuildRequires: httpd-devel libxml2-devel pcre-devel curl-devel lua-devel
@@ -19,9 +17,10 @@ as a powerful umbrella - shielding web applications from attacks.
 
 %prep
 
-%setup -n modsecurity-apache_%{version}
+%setup -q -n modsecurity-apache_%{version}
 
 %build
+find doc rules/util -type f -exec chmod -x {} \;
 cd apache2
 %configure
 make %{_smp_mflags}
@@ -42,11 +41,6 @@ rm -rf %{buildroot}
 %{_libdir}/httpd/modules/mod_security2.so
 %{_bindir}/mlogc
 %config(noreplace) %{_sysconfdir}/mlogc.conf
-%config(noreplace) %{_sysconfdir}/httpd/conf.d/mod_security.conf
-%dir %{_sysconfdir}/httpd/modsecurity.d
-%{_sysconfdir}/httpd/modsecurity.d/optional_rules
-%{_sysconfdir}/httpd/modsecurity.d/base_rules
-%config(noreplace) %{_sysconfdir}/httpd/modsecurity.d/*.conf
 
 %changelog
 * Wed Jun 30 2010 Michael Fleming <mfleming+rpm@thatfleminggent.com> - 2.5.12-3

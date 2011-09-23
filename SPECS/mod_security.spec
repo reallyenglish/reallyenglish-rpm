@@ -30,12 +30,6 @@ make %{_smp_mflags} mlogc
 %install
 rm -rf %{buildroot}
 install -D -m755 apache2/.libs/mod_security2.so %{buildroot}/%{_libdir}/httpd/modules/mod_security2.so
-install -D -m644 %{SOURCE1} %{buildroot}/%{_sysconfdir}/httpd/conf.d/mod_security.conf
-install -d %{buildroot}/%{_sysconfdir}/httpd/modsecurity.d/
-install -D -m644 rules/*.conf %{buildroot}/%{_sysconfdir}/httpd/modsecurity.d/
-cp -R rules/base_rules %{buildroot}/%{_sysconfdir}/httpd/modsecurity.d/
-cp -R rules/optional_rules %{buildroot}/%{_sysconfdir}/httpd/modsecurity.d/
-install -D -m644 %{SOURCE2} %{buildroot}/%{_sysconfdir}/httpd/modsecurity.d/modsecurity_localrules.conf
 install -Dp tools/mlogc %{buildroot}/%{_bindir}/mlogc
 install -D -m644 apache2/mlogc-src/mlogc-default.conf %{buildroot}/%{_sysconfdir}/mlogc.conf
 

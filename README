@@ -7,6 +7,6 @@ echo "%_topdir %(echo $HOME)/reallyenglish-rpm" >> ~/.rpmmacros
 
 > git clone git@github.com:reallyenglish/reallyenglish-rpm.git
 
-for more information, please see:
+for more information, see:
 
 http://wiki.reallyenglish.com/?SysAdmin/RPM (intranet only)

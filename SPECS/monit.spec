@@ -7,7 +7,7 @@
 Summary: Process monitor and restart utility
 Name: monit
 Version: 5.3
-Release: 1%{?dist}
+Release: 2%{?dist}
 License: GPLv3
 Group: Applications/Internet
 URL: http://mmonit.com/monit/
@@ -16,6 +16,7 @@ Packager: Steve Huff <shuff@vecna.org>
 Vendor: Dag Apt Repository, http://dag.wieers.com/apt/
 
 Source0: http://mmonit.com/monit/dist/monit-%{version}.tar.gz
+Patch0: patch-monit-5.3-init
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
 BuildRequires: binutils
@@ -37,6 +38,7 @@ and restart programs not responding.
 
 %{__perl} -pi.orig -e 's|\bmonitrc\b|monit.conf|' monitor.h
 %{__perl} -pi.orig -e 's|^#\s+(include .*)$|$1|' monitrc
+%patch0
 
 # store id and state files in /var/monit
 %{__perl} -pi.orig -e 's|^#(\s+)set (id\|state)file /var/\.monit\.(id\|state)$|set $2file /var/monit/$3|' monitrc
@@ -94,7 +96,10 @@ fi
 %attr(0600, root, root) %config(noreplace) %{_sysconfdir}/monit.conf
 
 %changelog
-* Thu Oct 13 2011 Tomoyuki Sakurai <tomoyukis@reallyenglish.com> - 5.2-1
+* Thu Oct 13 2011 Tomoyuki Sakurai <tomoyukis@reallyenglish.com> - 5.3-2
+- support "reload" in init script
+
+* Thu Oct 13 2011 Tomoyuki Sakurai <tomoyukis@reallyenglish.com> - 5.3-1
 - new upstream release
 
 * Mon Apr 04 2011 David Hrbáč <david@hrbac.cz> - 5.2.5-1

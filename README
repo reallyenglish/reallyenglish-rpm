@@ -3,7 +3,7 @@ rpm repository at reallyenglish.
 echo "%_topdir %(echo $HOME)/reallyenglish-rpm" >> ~/.rpmmacros
 
 > sudo yum install rpm-build redhat-rpm-config make gcc gcc-c++ yum-utils \
- rpmlint createrepo
+ rpmlint createrepo byacc flex
 
 > git clone git@github.com:reallyenglish/reallyenglish-rpm.git
 

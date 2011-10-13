@@ -7,7 +7,7 @@
 Summary: Process monitor and restart utility
 Name: monit
 Version: 5.3
-Release: 2%{?dist}
+Release: 3%{?dist}
 License: GPLv3
 Group: Applications/Internet
 URL: http://mmonit.com/monit/
@@ -96,6 +96,9 @@ fi
 %attr(0600, root, root) %config(noreplace) %{_sysconfdir}/monit.conf
 
 %changelog
+* Thu Oct 13 2011 Tomoyuki Sakurai <tomoyukis@reallyenglish.com> - 5.3-3
+- fix syntax error in the patch
+
 * Thu Oct 13 2011 Tomoyuki Sakurai <tomoyukis@reallyenglish.com> - 5.3-2
 - support "reload" in init script
 

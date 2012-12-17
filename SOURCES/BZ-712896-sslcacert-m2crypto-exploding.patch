@@ -1,0 +1,14 @@
+diff -ru yum-3.2.22-orig/yum/yumRepo.py yum-3.2.22/yum/yumRepo.py
+--- yum-3.2.22-orig/yum/yumRepo.py	2011-06-14 10:40:06.440080280 -0400
++++ yum-3.2.22/yum/yumRepo.py	2011-06-14 10:41:15.347574204 -0400
+@@ -650,7 +650,8 @@
+                     return True
+                 sslCtx.post_connection_check = checker    
+         if self.sslcacert:
+-            sslCtx.load_verify_locations(self.sslcacert)
++            # If this is unicode, m2crypto blows up.
++            sslCtx.load_verify_locations(str(self.sslcacert))
+         if self.sslclientcert:
+             sslCtx.load_cert(self.sslclientcert, self.sslclientkey)
+         return sslCtx
+Only in yum-3.2.22/yum: yumRepo.py~

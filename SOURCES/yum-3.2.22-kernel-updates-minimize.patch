@@ -1,0 +1,20 @@
+commit b16cab0f10c8f0ee21423d9fc742efc98c1abfd3
+Author: James Antill <james@and.org>
+Date:   Fri Apr 3 11:54:21 2009 -0400
+
+    Don't try and install 20 kernel updates on RHEL
+
+diff --git a/yum/__init__.py b/yum/__init__.py
+index 94fb2c6..fbf76b4 100644
+--- a/yum/__init__.py
++++ b/yum/__init__.py
+@@ -2774,8 +2774,7 @@ class YumBase(depsolve.Depsolve):
+             #  Always look for available packages, it doesn't seem to do any
+             # harm (apart from some time). And it fixes weird edge cases where
+             # "update a" (which requires a new b) is different from "update b"
+-            (e, m, u) = self.pkgSack.matchPackageNames([kwargs['pattern']])
+-            availpkgs.extend(e)
++            m =self.pkgSack.returnNewestByNameArch(patterns=[kwargs['pattern']])
+             availpkgs.extend(m)
+ 
+             if not availpkgs and not instpkgs:

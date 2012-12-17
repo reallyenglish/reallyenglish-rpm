@@ -1,0 +1,36 @@
+commit bb7b37be27df1dbe4466ed62dbf0fdcf9ff0a659
+Author: James Antill <james@and.org>
+Date:   Fri Apr 3 10:14:13 2009 -0400
+
+    Port the "turn i18n off" patch
+
+diff --git a/yum/i18n.py b/yum/i18n.py
+index 24c9825..9f2d5a9 100755
+--- a/yum/i18n.py
++++ b/yum/i18n.py
+@@ -450,8 +450,14 @@ def to_str(obj):
+         obj = str(obj)
+     return obj
+ 
+-
+-try: 
++if True:
++  # Python-2.* sucks for i18n/UnicodeErrors ... so we turn it off. We've
++  # got most of the major stuff beaten in Fedora, so if you really want it
++  # change the above to False and have fun (just don't log bugs).
++  _ = dummy_wrapper
++  P_ = dummyP_wrapper
++else:
++  try:
+     '''
+     Setup the yum translation domain and make _() and P_() translation wrappers
+     available.
+@@ -461,7 +467,7 @@ try:
+     t = gettext.translation('yum', fallback=True)
+     _ = t.ugettext
+     P_ = t.nugettext
+-except:
++  except:
+     '''
+     Something went wrong so we make a dummy _() wrapper there is just
+     returning the same text

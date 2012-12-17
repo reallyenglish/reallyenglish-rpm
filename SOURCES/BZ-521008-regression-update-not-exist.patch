@@ -1,0 +1,26 @@
+commit 56766151d170674366076bf32b9c4f670021e7c0
+Author: James Antill <james@and.org>
+Date:   Fri Aug 28 10:46:52 2009 -0400
+
+     Don't accidentally exit 1, when someone asks to update a non-existant pkg
+    
+     This got introduced in ef6f313d5f97aa7398ac3aa04c4637d8b9da7125 from
+    April, 2009. It's not indended behaviour.
+
+diff --git a/yum/__init__.py b/yum/__init__.py
+index 3f75528..faa4895 100644
+--- a/yum/__init__.py
++++ b/yum/__init__.py
+@@ -2944,7 +2944,11 @@ class YumBase(depsolve.Depsolve):
+             #  Always look for available packages, it doesn't seem to do any
+             # harm (apart from some time). And it fixes weird edge cases where
+             # "update a" (which requires a new b) is different from "update b"
+-            m =self.pkgSack.returnNewestByNameArch(patterns=[kwargs['pattern']])
++            try:
++                pats = [kwargs['pattern']]
++                m = self.pkgSack.returnNewestByNameArch(patterns=pats)
++            except Errors.PackageSackError:
++                m = []
+             availpkgs.extend(m)
+ 
+             if not availpkgs and not instpkgs:

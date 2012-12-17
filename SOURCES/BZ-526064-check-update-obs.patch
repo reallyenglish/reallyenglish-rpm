@@ -1,0 +1,90 @@
+commit d4b0e478d0813a97e3c09a6c0fd6fee802480ebf
+Author: James Antill <james@and.org>
+Date:   Tue Sep 29 15:04:51 2009 -0400
+
+    Show obsoletes in check-update if obsoletes processing is on, BZ 526064
+
+diff --git a/yumcommands.py b/yumcommands.py
+index 82c679b..1451a36 100644
+--- a/yumcommands.py
++++ b/yumcommands.py
+@@ -577,7 +577,8 @@ class CheckUpdateCommand(YumCommand):
+         result = 0
+         try:
+             ypl = base.returnPkgLists(extcmds)
+-            if base.verbose_logger.isEnabledFor(logginglevels.DEBUG_3):
++            if (base.conf.obsoletes or
++                base.verbose_logger.isEnabledFor(logginglevels.DEBUG_3)):
+                 typl = base.returnPkgLists(['obsoletes'])
+                 ypl.obsoletes = typl.obsoletes
+                 ypl.obsoletesTuples = typl.obsoletesTuples
+commit 8bad44a27301f5791af4b76eb38c8d8d91844eef
+Author: James Antill <james@and.org>
+Date:   Wed May 6 10:46:40 2009 -0400
+
+    Do patterns processing on doPkgLists().obsoletes (and the tuples)
+
+diff --git a/yum/__init__.py b/yum/__init__.py
+index 0da8ce3..a0c1217 100644
+--- a/yum/__init__.py
++++ b/yum/__init__.py
+@@ -1747,6 +1747,17 @@ class YumBase(depsolve.Depsolve):
+                 for po in pkgs:
+                     obsoletes.append(po)
+                     obsoletesTuples.append((po, instpo))
++            if patterns:
++                exactmatch, matched, unmatched = \
++                   parsePackages(obsoletes, patterns, casematch=not ignore_case)
++                obsoletes = exactmatch + matched
++                matched_obsoletes = set(obsoletes)
++                nobsoletesTuples = []
++                for po, instpo in obsoletesTuples:
++                    if po not in matched_obsoletes:
++                        continue
++                    nobsoletesTuples.append((po, instpo))
++                obsoletesTuples = nobsoletesTuples
+         
+         # packages recently added to the repositories
+         elif pkgnarrow == 'recent':
+commit 30c94bf851fa27eaccf51c6cff8d3c5613f57dfd
+Author: James Antill <james@and.org>
+Date:   Fri Dec 11 16:57:38 2009 -0500
+
+    Use showdups for obsoletes, so "list obsoletes" is sane for RHEL like repos
+
+diff --git a/yum/__init__.py b/yum/__init__.py
+index 7e87730..706f790 100644
+--- a/yum/__init__.py
++++ b/yum/__init__.py
+@@ -1902,6 +1902,15 @@ class YumBase(depsolve.Depsolve):
+                         continue
+                     nobsoletesTuples.append((po, instpo))
+                 obsoletesTuples = nobsoletesTuples
++            if not showdups:
++                obsoletes = packagesNewestByName(obsoletes)
++                filt = set(obsoletes)
++                nobsoletesTuples = []
++                for po, instpo in obsoletesTuples:
++                    if po not in filt:
++                        continue
++                    nobsoletesTuples.append((po, instpo))
++                obsoletesTuples = nobsoletesTuples
+         
+         # packages recently added to the repositories
+         elif pkgnarrow == 'recent':
+
+  This could just import the new move to Name() instead of NameArch(),
+but that change is really new ... so do this.
+
+diff -ru yum-3.2.22-orig/yum/__init__.py yum-3.2.22/yum/__init__.py
+--- yum-3.2.22-orig/yum/__init__.py	2009-12-17 11:55:25.000000000 -0500
++++ yum-3.2.22/yum/__init__.py	2009-12-17 11:59:25.000000000 -0500
+@@ -1720,7 +1720,7 @@
+                     nobsoletesTuples.append((po, instpo))
+                 obsoletesTuples = nobsoletesTuples
+             if not showdups:
+-                obsoletes = packagesNewestByName(obsoletes)
++                obsoletes = packagesNewestByNameArch(obsoletes)
+                 filt = set(obsoletes)
+                 nobsoletesTuples = []
+                 for po, instpo in obsoletesTuples:

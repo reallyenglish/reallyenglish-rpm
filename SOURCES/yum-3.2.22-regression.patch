@@ -1,0 +1,129 @@
+commit a8f894049d43b37aa429468999e89531206cfd3d
+Author: Seth Vidal <skvidal@fedoraproject.org>
+Date:   Wed May 6 13:18:24 2009 -0400
+
+    add SHA=SHA1 hack to misc.Checksums(), too
+
+diff --git a/yum/misc.py b/yum/misc.py
+index 6daf4f1..b10214a 100644
+--- a/yum/misc.py
++++ b/yum/misc.py
+@@ -202,6 +202,8 @@ class Checksums:
+ 
+         done = set()
+         for sumtype in checksums:
++            if sumtype == 'sha':
++                sumtype = 'sha1'
+             if sumtype in done:
+                 continue
+
+commit 523d7ed151ada6d8a68caadb6089c618d98614bb
+Author: James Antill <james@and.org>
+Date:   Wed May 13 16:17:06 2009 -0400
+
+    Default to the default checksum, not sha256, for local pkgs
+
+diff --git a/yum/packages.py b/yum/packages.py
+index 3dc7a15..48cee27 100644
+--- a/yum/packages.py
++++ b/yum/packages.py
+@@ -1580,7 +1580,9 @@ class YumLocalPackage(YumHeaderPackage):
+     def localPkg(self):
+         return self.localpath
+     
+-    def _do_checksum(self, checksum_type='sha256'):
++    def _do_checksum(self, checksum_type=None):
++        if checksum_type is None:
++            checksum_type = misc._default_checksums[0]
+         if not self._checksum:
+             self._checksum = misc.checksum(checksum_type, self.localpath)
+             self._checksums = [(checksum_type, self._checksum, 1)]
+commit f06d073980b408cafe8047dc2a655ce711873b5a
+Author: James Antill <james@and.org>
+Date:   Wed May 13 16:23:17 2009 -0400
+
+    Don't checksum local pkg data
+
+diff --git a/yum/packages.py b/yum/packages.py
+index 48cee27..4178d71 100644
+--- a/yum/packages.py
++++ b/yum/packages.py
+@@ -1595,6 +1595,10 @@ class YumLocalPackage(YumHeaderPackage):
+         self._do_checksum()
+         return self._checksums
+ 
++    def verifyLocalPkg(self):
++        """ don't bother "checking" the package matches itself. """
++        return True
++
+     def _get_header_byte_range(self):
+         """takes an rpm file or fileobject and returns byteranges for location of the header"""
+         if self._hdrstart and self._hdrend:
+ 
+commit 41431a3ecb694b249e9a20436086eaea807dc583
+Author: James Antill <james@and.org>
+Date:   Wed May 13 17:56:10 2009 -0400
+
+    Set checksum_type to what we'll use, for local pkgs
+
+diff --git a/yum/packages.py b/yum/packages.py
+index 4178d71..133aa79 100644
+--- a/yum/packages.py
++++ b/yum/packages.py
+@@ -1563,7 +1563,7 @@ class YumLocalPackage(YumHeaderPackage):
+         self._hdrstart = None
+         self._hdrend = None
+         self.arch = self.isSrpm()
+-        self.checksum_type = 'sha256'
++        self.checksum_type = misc._default_checksums[0]
+ 
+         # these can be set by callers that need these features (ex: createrepo)
+         self._reldir = None 
+commit 8c2d850b7e612a8f0530ae12ec42e3b6acd1e0fa
+Author: James Antill <james@and.org>
+Date:   Wed May 13 18:44:08 2009 -0400
+
+    Rely on Checksums() to do the sha to sha1 conversion
+
+diff --git a/yum/misc.py b/yum/misc.py
+index a470ea4..2019ee3 100644
+--- a/yum/misc.py
++++ b/yum/misc.py
+@@ -283,9 +283,6 @@ def checksum(sumtype, file, CHUNK=2**16, datasize=None):
+         else:           
+             fo = open(file, 'r', CHUNK)
+ 
+-        if sumtype == 'sha':
+-            sumtype = 'sha1'
+-
+         data = Checksums([sumtype])
+         while data.read(fo, CHUNK):
+             pass
+commit 1dda8bd370fbf1c351932b131a0e40955561b134
+Author: James Antill <james@and.org>
+Date:   Thu May 14 09:39:19 2009 -0400
+
+    Convert sha to sha1 in digest()/hexdigest()
+
+diff --git a/yum/misc.py b/yum/misc.py
+index 2019ee3..7d4ee61 100644
+--- a/yum/misc.py
++++ b/yum/misc.py
+@@ -241,6 +241,8 @@ class Checksums:
+     def hexdigest(self, checksum=None):
+         if checksum is None:
+             checksum = self._sumtypes[0]
++        if checksum == 'sha':
++            checksum = 'sha1'
+         return self.hexdigests()[checksum]
+ 
+     def digests(self):
+@@ -252,6 +254,8 @@ class Checksums:
+     def digest(self, checksum=None):
+         if checksum is None:
+             checksum = self._sumtypes[0]
++        if checksum == 'sha':
++            checksum = 'sha1'
+         return self.digests()[checksum]
+ 
+ 

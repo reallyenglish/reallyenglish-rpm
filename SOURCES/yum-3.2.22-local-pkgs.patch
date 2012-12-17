@@ -1,0 +1,20 @@
+commit bce48158c6503fad36f42ce926b0468721e685a3
+Author: James Antill <james@and.org>
+Date:   Wed Apr 8 01:26:35 2009 -0400
+
+    Document the groupid feature of grouplist
+
+diff --git a/docs/yum.8 b/docs/yum.8
+index 379169a..c8116ee 100644
+--- a/docs/yum.8
++++ b/docs/yum.8
+@@ -166,7 +166,8 @@ as "installed" if all mandatory packages are installed, or if a group doesn't
+ have any mandatory packages then it is installed if any of the optional or
+ default package are installed.
+ The optional "hidden" argument will also list groups marked as not being
+-"user visible".
++"user visible". If you pass the -v option, to enable verbose mode, then the
++groupid's are displayed.
+ .IP 
+ .IP "\fBgroupremove\fP"
+ Is used to remove all of the pacakges in a group, unlike "groupinstall" this

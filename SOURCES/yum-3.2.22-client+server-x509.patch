@@ -1,0 +1,109 @@
+commit d13f2add516c3bc8eba0ef5c9ab870a533196c7b
+Author: James Antill <james@and.org>
+Date:   Fri Apr 3 10:35:16 2009 -0400
+
+    Add ssl options for x509 checking and sslcacert
+
+diff --git a/yum/config.py b/yum/config.py
+index d3ace8f..1f81ffa 100644
+--- a/yum/config.py
++++ b/yum/config.py
+@@ -603,6 +603,11 @@ class YumConf(StartupConf):
+     logfile = Option('/var/log/yum.log')
+     reposdir = ListOption(['/etc/yum/repos.d', '/etc/yum.repos.d'])
+ 
++    sslcacert = Option()
++    sslverify = BoolOption(False)
++    sslclientcert = Option()
++    sslclientkey = Option()
++
+     commands = ListOption()
+     exclude = ListOption()
+     failovermethod = Option('roundrobin')
+@@ -739,6 +744,11 @@ class RepoConf(BaseConfig):
+     #       checksumming of the repomd.xml.
+     mdpolicy = Inherit(YumConf.mdpolicy)
+     cost = IntOption(1000)
++
++    sslcacert=Inherit(YumConf.sslcacert)
++    sslverify=Inherit(YumConf.sslverify)
++    sslclientcert=Inherit(YumConf.sslclientcert)
++    sslclientkey=Inherit(YumConf.sslclientkey)
+     
+ def readStartupConfig(configfile, root):
+     '''
+commit e50c2f7b68b05a8eccc366cc460655591e75e292
+Author: James Antill <james@and.org>
+Date:   Fri Apr 3 10:41:17 2009 -0400
+
+    Alter yum download code for x509 cert checking and sslcacert
+
+diff --git a/yum/yumRepo.py b/yum/yumRepo.py
+index 71741db..0e243b8 100644
+--- a/yum/yumRepo.py
++++ b/yum/yumRepo.py
+@@ -36,6 +36,12 @@ from yum import misc
+ from constants import *
+ import metalink
+ 
++try:
++    from M2Crypto import SSL
++    m2cryptoLoaded = True
++except ImportError:
++    m2cryptoLoaded = False
++
+ import logging
+ import logginglevels
+ 
+@@ -248,6 +254,10 @@ class YumRepository(Repository, config.RepoConf):
+         self._metalink = None
+         self.groups_added = False
+         self.http_headers = {}
++        self.sslcacert = None
++        self.sslverify = False
++        self.sslclientcert = None
++        self.sslclientkey = None
+         self.repo_config_age = 0 # if we're a repo not from a file then the
+                                  # config is very, very old
+         # throw in some stubs for things that will be set by the config class
+@@ -472,7 +482,8 @@ class YumRepository(Repository, config.RepoConf):
+                                     timeout=self.timeout,
+                                     copy_local=self.copy_local,
+                                     http_headers=headers,
+-                                    reget='simple')
++                                    reget='simple',
++                                    ssl_context = self._getSslContext())
+ 
+         self._grabfunc.opts.user_agent = default_grabber.opts.user_agent
+ 
+@@ -597,6 +608,22 @@ class YumRepository(Repository, config.RepoConf):
+         self.baseurl = self._urls
+         self.check()
+ 
++    def _getSslContext(self):
++        if not m2cryptoLoaded:
++            return None
++        sslCtx = SSL.Context()
++        if self.sslverify:
++            sslCtx.set_verify(SSL.verify_peer | SSL.verify_fail_if_no_peer_cert,
++                              12)
++        else:
++            sslCtx.set_allow_unknown_ca(True)
++            sslCtx.set_verify(SSL.verify_none, -1)
++        if self.sslcacert:
++            sslCtx.load_verify_locations(self.sslcacert)
++        if self.sslclientcert:
++            sslCtx.load_cert(self.sslclientcert, self.sslclientkey)
++        return sslCtx
++
+     def _replace_and_check_url(self, url_list):
+         goodurls = []
+         skipped = None
+@@ -742,6 +769,7 @@ class YumRepository(Repository, config.RepoConf):
+                             timeout=self.timeout,
+                             checkfunc=checkfunc,
+                             http_headers=headers,
++                            ssl_ca_cert = self.sslcacert
+                             )
+ 
+             ug.opts.user_agent = default_grabber.opts.user_agent

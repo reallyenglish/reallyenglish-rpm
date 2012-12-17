@@ -1,0 +1,75 @@
+commit 1ba0b3947f71c57a1106fd448d7ec1445f1a54be
+Author: James Antill <james@and.org>
+Date:   Sat Oct 17 23:40:22 2009 -0400
+
+     Add .base_package_name, which parses .sourcerpm or uses .name
+    
+     This is added to RpmBase, so we can do it for installed pkgs too, we
+    could move it even higher as it only actually needs .name to work.
+    
+     Also get rid of an extra .isSrpm() call.
+
+diff --git a/yum/packages.py b/yum/packages.py
+index bb0e7ca..71430fd 100644
+--- a/yum/packages.py
++++ b/yum/packages.py
+@@ -488,6 +488,25 @@ class RpmBase(object):
+     changelog = property(fget=lambda self: self.returnChangelog())
+     EVR = property(fget=lambda self: self.returnEVR())
+     
++    def _getBaseName(self):
++        """ Return the "base name" of the package, atm. we can only look at
++            the sourcerpm. """
++        if hasattr(self, '_base_package_name_ret'):
++            return self._base_package_name_ret
++
++        if hasattr(self, 'sourcerpm') and self.sourcerpm:
++            (n, v, r, e, a) = rpmUtils.miscutils.splitFilename(self.sourcerpm)
++            if n != self.name:
++                self._base_package_name_ret = n
++                return n
++
++        # If there is no sourcerpm, or sourcerpm == us, use .name
++        self._base_package_name_ret = self.name
++        return self._base_package_name_ret
++
++    base_package_name = property(fget=lambda self: self._getBaseName())
++
++
+ class PackageEVR:
+ 
+     """
+@@ -1570,7 +1589,6 @@ class YumLocalPackage(YumHeaderPackage):
+         self.pkgtup = (self.name, self.arch, self.epoch, self.ver, self.rel)
+         self._hdrstart = None
+         self._hdrend = None
+-        self.arch = self.isSrpm()
+         self.checksum_type = misc._default_checksums[0]
+ 
+         # these can be set by callers that need these features (ex: createrepo)
+commit fdc6f9e39eaa99d3535032b30b7fc5357d5751fc
+Author: James Antill <james@and.org>
+Date:   Sat Oct 17 23:52:28 2009 -0400
+
+     Is base package name installed, added as a compare_providers test
+       Should fix the problem that ticket/296 has
+    
+     Also add debug output for reqpo common repoid comparison.
+      Also bump the nudge from 2 to 8, so it should nudge past shortest
+      name.
+
+diff --git a/yum/depsolve.py b/yum/depsolve.py
+index b10a72c..5e855d5 100644
+--- a/yum/depsolve.py
++++ b/yum/depsolve.py
+@@ -1160,6 +1160,10 @@ class Depsolve(object):
+                 self.verbose_logger.log(logginglevels.DEBUG_4,
+                     _('common sourcerpm %s and %s' % (po, reqpo)))
+                 pkgresults[po] += 20
++            if self.isPackageInstalled(po.base_package_name):
++                self.verbose_logger.log(logginglevels.DEBUG_4,
++                    _('base package %s is installed for %s' % (po.base_package_name, po)))
++                pkgresults[po] += 5 # Same as ipkgresults above.
+             if reqpo:
+                 cpl = _common_prefix_len(po.name, reqpo.name)
+                 if cpl > 2:

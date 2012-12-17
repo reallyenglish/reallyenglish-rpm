@@ -1,0 +1,19 @@
+commit 84af1f4db5c9dac5723a15c70a736292f25d73e4
+Author: James Antill <james@and.org>
+Date:   Thu Aug 13 14:02:44 2009 -0400
+
+    Fix "instant" downloads, BZ 517286
+
+diff --git a/output.py b/output.py
+index 74a7ce2..60c1dcf 100755
+--- a/output.py
++++ b/output.py
+@@ -1161,6 +1161,8 @@ to exit.
+         tl = urlgrabber.progress.TerminalLine(8)
+         self.verbose_logger.log(logginglevels.INFO_2, "-" * tl.rest())
+         dl_time = time.time() - download_start_timestamp
++        if dl_time <= 0: # This stops divide by zero, among other problems
++            dl_time = 0.01
+         ui_size = tl.add(' | %5sB' % self.format_number(remote_size))
+         ui_time = tl.add(' %9s' % self.format_time(dl_time))
+         ui_end  = tl.add(' ' * 5)

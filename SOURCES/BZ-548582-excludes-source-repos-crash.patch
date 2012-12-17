@@ -1,0 +1,14 @@
+diff -ru yum-3.2.22-orig/yum/__init__.py yum-3.2.22/yum/__init__.py
+--- yum-3.2.22-orig/yum/__init__.py	2010-01-27 13:44:35.000000000 -0500
++++ yum-3.2.22/yum/__init__.py	2010-02-16 11:56:54.000000000 -0500
+@@ -503,8 +503,8 @@
+             return self.repos.getPackageSack() # ha ha, see above
+         self._pkgSack = self.repos.getPackageSack()
+         
+-        self.excludePackages()
+         self._pkgSack.excludeArchs(archlist)
++        self.excludePackages()
+         
+         #FIXME - this could be faster, too.
+         if repos == 'enabled':
+Only in yum-3.2.22/yum: __init__.py~

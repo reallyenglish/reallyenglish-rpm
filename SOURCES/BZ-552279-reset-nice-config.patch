@@ -1,0 +1,82 @@
+commit b69dd197bd72175fdbe70f6b23a6f8971187e2a4
+Author: James Antill <james@and.org>
+Date:   Mon Oct 17 15:14:00 2011 -0400
+
+    Add reset_nice configuration.
+
+diff --git a/docs/yum.conf.5 b/docs/yum.conf.5
+index 607e9fc..d6fe824 100644
+--- a/docs/yum.conf.5
++++ b/docs/yum.conf.5
+@@ -622,6 +622,10 @@ When installing/reinstalling/upgrading packages go through each package's
+ installed dependencies and check for an update.
+ Boolean (1, 0, True, False, yes,no) Defaults to False
+ 
++.IP
++\fBreset_nice \fR
++If set to true then yum will try to reset the nice value to zero, before
++running an rpm transaction. Defaults to False.
+ 
+ 
+ .SH "[repository] OPTIONS"
+diff --git a/yum/config.py b/yum/config.py
+index fffd0d1..f9789de 100644
+--- a/yum/config.py
++++ b/yum/config.py
+@@ -720,6 +720,7 @@ class YumConf(StartupConf):
+     """
+     retries = PositiveIntOption(10, names_of_0=["<forever>"])
+     recent = IntOption(7, range_min=0)
++    reset_nice = BoolOption(False)
+ 
+     cachedir = Option('/var/cache/yum')
+ 
+commit 5d7b311e71b0925f4a07bf4ae3c83ccf517034a7
+Author: James Antill <james@and.org>
+Date:   Tue Oct 18 09:51:12 2011 -0400
+
+    Turn reset_nice on by default, works around BZ 552279, 742363.
+
+diff --git a/yum/config.py b/yum/config.py
+index f9789de..bff59e4 100644
+--- a/yum/config.py
++++ b/yum/config.py
+@@ -720,7 +720,7 @@ class YumConf(StartupConf):
+     """
+     retries = PositiveIntOption(10, names_of_0=["<forever>"])
+     recent = IntOption(7, range_min=0)
+-    reset_nice = BoolOption(False)
++    reset_nice = BoolOption(True)
+ 
+     cachedir = Option('/var/cache/yum')
+ 
+diff -ru yum-3.2.22-orig/yum/__init__.py yum-3.2.22/yum/__init__.py
+--- yum-3.2.22-orig/yum/__init__.py	2011-11-29 15:04:56.148029577 -0500
++++ yum-3.2.22/yum/__init__.py	2011-11-29 15:06:16.169515413 -0500
+@@ -974,11 +974,25 @@
+ 
+         self.plugins.run('pretrans')
+ 
++        if self.conf.reset_nice:
++            onice = os.nice(0)
++            if onice:
++                try:
++                    os.nice(-onice)
++                except:
++                    onice = 0
++
+         errors = self.ts.run(cb.callback, '')
+         # ts.run() exit codes are, hmm, "creative": None means all ok, empty 
+         # list means some errors happened in the transaction and non-empty 
+         # list that there were errors preventing the ts from starting...
+         
++        if self.conf.reset_nice:
++            try:
++                os.nice(onice)
++            except:
++                pass
++
+         # make resultobject - just a plain yumgenericholder object
+         resultobject = misc.GenericHolder
+         resultobject.return_code = 0
+Only in yum-3.2.22/yum: __init__.py~

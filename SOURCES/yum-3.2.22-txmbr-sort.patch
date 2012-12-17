@@ -1,0 +1,22 @@
+commit 9bb35b4eb13fa2518f55e329eda39ce7dbe7e56d
+Author: James Antill <james@and.org>
+Date:   Fri Apr 3 11:33:55 2009 -0400
+
+    Sort txmbrs the same way we sort package objects
+
+diff --git a/yum/transactioninfo.py b/yum/transactioninfo.py
+index 6f78ac5..f17e331 100644
+--- a/yum/transactioninfo.py
++++ b/yum/transactioninfo.py
+@@ -563,10 +563,7 @@ class TransactionMember:
+             self.depends_on.append(po)
+ 
+     def __cmp__(self, other):
+-        result = cmp(self.name, other.name)
+-        if not result:
+-            return cmp(id(self), id(other))
+-        return result
++        return cmp(self.po, other.po)
+ 
+     def __hash__(self):
+         return object.__hash__(self)

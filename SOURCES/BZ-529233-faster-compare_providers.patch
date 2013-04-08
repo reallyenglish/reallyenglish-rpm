@@ -1,0 +1,71 @@
+diff -ru yum-3.2.22-orig/yum/depsolve.py yum-3.2.22/yum/depsolve.py
+--- yum-3.2.22-orig/yum/depsolve.py	2009-12-17 10:05:54.000000000 -0500
++++ yum-3.2.22/yum/depsolve.py	2009-12-17 10:11:40.000000000 -0500
+@@ -1040,21 +1040,42 @@
+             if y_dist == x_dist:
+                 return None
+             return x
++
++        #  Actual start of _compare_providers().
++
++        # Do a NameArch filtering, based on repo. __cmp__
++        unique_nevra_pkgs = {}
++        for pkg in pkgs:
++            if (pkg.pkgtup in unique_nevra_pkgs and
++                unique_nevra_pkgs[pkg.pkgtup].repo <= pkg.repo):
++                continue
++            unique_nevra_pkgs[pkg.pkgtup] = pkg
++        pkgs = unique_nevra_pkgs.values()
+             
+         pkgresults = {}
+         ipkgresults = {}
+ 
+         for pkg in pkgs:
+             pkgresults[pkg] = 0
+-            if self.rpmdb.contains(pkg.name):
++
++            rpmdbpkgs = self.rpmdb.searchNevra(name=pkg.name)
++            if rpmdbpkgs:
+                 #  We only want to count things as "installed" if they are
+                 # older than what we are comparing, because this then an update
+                 # so we give preference. If they are newer then obsoletes/etc.
+                 # could play a part ... this probably needs a better fix.
+-                rpmdbpkgs = self.rpmdb.returnPackages(patterns=[pkg.name])
+                 newest = sorted(rpmdbpkgs)[-1]
+                 if newest.verLT(pkg):
+-                    ipkgresults[pkg] = 0
++                    # give pkgs which are updates just a SLIGHT edge
++                    # we should also make sure that any pkg
++                    # we are giving an edge to is not obsoleted by
++                    # something else in the transaction. :(
++                    # there are many ways I hate this - this is but one
++                    ipkgresults[pkg] = 5
++            else:
++                # just b/c they're not installed pkgs doesn't mean they should
++                # be ignored entirely. Just not preferred
++                ipkgresults[pkg] = 0
+ 
+         #  This is probably only for "renames". What happens is that pkgA-1 gets
+         # obsoleted by pkgB but pkgB requires pkgA-2, now _if_ the pkgA txmbr
+@@ -1085,6 +1106,8 @@
+         
+         # add the negative of the length of the name to the score
+         
++        
++        lpos = {}
+         for po in pkgs:
+             for nextpo in pkgs:
+                 if po == nextpo:
+@@ -1094,9 +1117,9 @@
+                 # treat it like it's obsoleted. The problem here is X-1
+                 # accidentally provides FOO, so you release X-2 without the
+                 # provide, but X-1 is still picked over a real provider.
+-                na = (po.name,po.arch)
+-                lpos = self.pkgSack.returnNewestByNameArch(naTup=na)
+-                if not lpos or po != sorted(lpos)[-1]:
++                if po.name not in lpos:
++                    lpos[po.name] = self.pkgSack.returnNewestByName(po.name)[:1]
++                if not lpos[po.name] or not po.verEQ(lpos[po.name][0]):
+                     pkgresults[po] -= 1024
+ 
+                 obsoleted = False

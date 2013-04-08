@@ -1,0 +1,20 @@
+Based on:
+commit ffc98d808efb7d7dd42c572a2180b93058f10556
+Author: Tim Lauridsen <timlau@fedoraproject.org>
+Date:   Mon Apr 6 11:44:02 2009 +0200
+
+    Make translations work again
+
+diff --git a/yum/i18n.py b/yum/i18n.py
+index 24c9825..e8ab4ac 100755
+--- a/yum/i18n.py
++++ b/yum/i18n.py
+@@ -460,7 +460,7 @@ try:
+     import gettext
+     t = gettext.translation('yum', fallback=True)
+     _ = t.ugettext
+-    P_ = t.nugettext
++    P_ = t.ungettext
+   except:
+     '''
+     Something went wrong so we make a dummy _() wrapper there is just

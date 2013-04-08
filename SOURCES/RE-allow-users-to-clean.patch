@@ -1,0 +1,12 @@
+diff --git a/yumcommands.py b/yumcommands.py
+index fee8060..adcfff6 100644
+--- a/yumcommands.py
++++ b/yumcommands.py
+@@ -530,7 +530,6 @@ class CleanCommand(YumCommand):
+         return _("Remove cached data")
+ 
+     def doCheck(self, base, basecmd, extcmds):
+-        checkRootUID(base)
+         checkCleanArg(base, basecmd, extcmds)
+         
+     def doCommand(self, base, basecmd, extcmds):

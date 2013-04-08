@@ -1,0 +1,15 @@
+diff -ru yum-3.2.22-orig/yum/yumRepo.py yum-3.2.22/yum/yumRepo.py
+--- yum-3.2.22-orig/yum/yumRepo.py	2010-08-11 15:13:35.787310219 -0400
++++ yum-3.2.22/yum/yumRepo.py	2010-08-11 15:15:51.122261544 -0400
+@@ -640,6 +640,10 @@
+         else:
+             sslCtx.set_allow_unknown_ca(True)
+             sslCtx.set_verify(SSL.verify_none, -1)
++            if hasattr(sslCtx, 'post_connection_check'):
++                def checker(*args):
++                    return True
++                sslCtx.post_connection_check = checker    
+         if self.sslcacert:
+             sslCtx.load_verify_locations(self.sslcacert)
+         if self.sslclientcert:
+Only in yum-3.2.22/yum: yumRepo.py~

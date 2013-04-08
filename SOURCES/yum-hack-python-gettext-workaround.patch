@@ -1,0 +1,22 @@
+commit c8b7d9146c2f82312ebf8a08cd311dbe391ff9c7
+Author: James Antill <james@and.org>
+Date:   Tue Aug 26 16:41:23 2008 -0400
+
+    Broken python gettext workaround
+
+diff --git a/output.py b/output.py
+index cdfc46d..edf7500 100644
+--- a/output.py
++++ b/output.py
+@@ -331,7 +331,10 @@ class YumOutput:
+             s = s.encode("UTF-8")
+         if len(s) > 0:
+             for d in self.i18ndomains:
+-                t = gettext.dgettext(d, s)
++                try:
++                        t = gettext.dgettext(d, s)
++                except AttributeError: # Horrible hack for python bug
++                        t = s
+                 if t != s:
+                     s = t
+                     break

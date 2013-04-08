@@ -1,0 +1,32 @@
+commit d675bb19031e69ec73f8f1140dde1806f930a587
+Author: James Antill <james@and.org>
+Date:   Tue Aug 26 16:39:08 2008 -0400
+
+    Change failovermethod to priority
+
+diff --git a/docs/yum.conf.5 b/docs/yum.conf.5
+index 415f84b..4ee9a60 100644
+--- a/docs/yum.conf.5
++++ b/docs/yum.conf.5
+@@ -394,7 +394,7 @@ encounters a failure contacting the host.
+ `priority' starts from the first baseurl listed and reads through them
+ sequentially.
+ 
+-\fBfailovermethod\fR defaults to `roundrobin' if not specified.
++\fBfailovermethod\fR defaults to `priority' if not specified.
+ 
+ .IP \fBkeepalive\fR
+ Either `1' or `0'. This tells yum whether or not HTTP/1.1 keepalive should be
+diff --git a/yum/config.py b/yum/config.py
+index fb34c06..3e1bfcc 100644
+--- a/yum/config.py
++++ b/yum/config.py
+@@ -605,7 +605,7 @@ class YumConf(StartupConf):
+ 
+     commands = ListOption()
+     exclude = ListOption()
+-    failovermethod = Option('roundrobin')
++    failovermethod = Option('priority')
+     proxy = UrlOption(schemes=('http', 'ftp', 'https'), allow_none=True)
+     proxy_username = Option()
+     proxy_password = Option()

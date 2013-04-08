@@ -1,0 +1,22 @@
+commit 662ae41ded902ff174b6164b8835d417cb6180dd
+Author: James Antill <james@and.org>
+Date:   Fri Jun 19 17:47:45 2009 -0400
+
+    Fix po usage for reinstall, reinstall local etc.
+
+diff --git a/yum/__init__.py b/yum/__init__.py
+index 1a3ee3f..c2d573d 100644
+--- a/yum/__init__.py
++++ b/yum/__init__.py
+@@ -3190,7 +3190,10 @@ class YumBase(depsolve.Depsolve):
+                              rpm.RPMPROB_FILTER_REPLACEOLDFILES)
+ 
+         tx_mbrs = []
+-        tx_mbrs.extend(self.remove(po, **kwargs))
++        if po: # The po, is the "available" po ... we want the installed po
++            tx_mbrs.extend(self.remove(pkgtup=po.pkgtup))
++        else:
++            tx_mbrs.extend(self.remove(**kwargs))
+         if not tx_mbrs:
+             raise Errors.ReinstallRemoveError, _("Problem in reinstall: no package matched to remove")
+         templen = len(tx_mbrs)

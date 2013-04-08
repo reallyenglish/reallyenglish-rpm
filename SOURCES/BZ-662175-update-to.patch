@@ -1,0 +1,184 @@
+commit 63f729d5ce3c13ae592ccd637532a5a8286718e3
+Author: James Antill <james@and.org>
+Date:   Wed Mar 30 18:00:08 2011 -0400
+
+    Add update-to and upgrade-to commands, as "hidden" alias for update/upgrade.
+
+diff --git a/cli.py b/cli.py
+index eca1812..1b7d7e6 100644
+--- a/cli.py
++++ b/cli.py
+@@ -713,7 +713,7 @@ class YumBaseCli(yum.YumBase, output.YumOutput):
+             return 1, [_('Nothing to do')]
+         return 0, [_('Nothing to do')]
+         
+-    def updatePkgs(self, userlist, quiet=0):
++    def updatePkgs(self, userlist, quiet=0, update_to=False):
+         """take user commands and populate transaction wrapper with 
+            packages to be updated"""
+         
+@@ -740,7 +740,7 @@ class YumBaseCli(yum.YumBase, output.YumOutput):
+                     userlist.remove(item)
+                 
+             for arg in userlist:
+-                if not self.update(pattern=arg):
++                if not self.update(pattern=arg, update_to=update_to):
+                     self._checkMaybeYouMeant(arg)
+ 
+         if len(self.tsInfo) > oldcount:
+diff --git a/yum/__init__.py b/yum/__init__.py
+index d1f07d0..60c572d 100644
+--- a/yum/__init__.py
++++ b/yum/__init__.py
+@@ -3563,7 +3582,7 @@ class YumBase(depsolve.Depsolve):
+             txmbr.reason = 'dep'
+         return txmbr
+ 
+-    def update(self, po=None, requiringPo=None, **kwargs):
++    def update(self, po=None, requiringPo=None, update_to=False, **kwargs):
+         """try to mark for update the item(s) specified. 
+             po is a package object - if that is there, mark it for update,
+             if possible
+@@ -3634,26 +3653,37 @@ class YumBase(depsolve.Depsolve):
+             if kwargs['pattern'] and kwargs['pattern'][0] == '@':
+                 return self._at_groupinstall(kwargs['pattern'])
+ 
+-            (e, m, u) = self.rpmdb.matchPackageNames([kwargs['pattern']])
+-            instpkgs.extend(e)
+-            instpkgs.extend(m)
++            arg = kwargs['pattern']
++            if not update_to:
++                instpkgs  = self.rpmdb.returnPackages(patterns=[arg])
++            else:
++                availpkgs = self.pkgSack.returnPackages(patterns=[arg])
+ 
+-            if u:
++            if not instpkgs and not availpkgs:
+                 depmatches = []
+-                arg = u[0]
+                 try:
+-                    depmatches = self.returnInstalledPackagesByDep(arg)
++                    if update_to:
++                        depmatches = self.returnPackagesByDep(arg)
++                    else:
++                        depmatches = self.returnInstalledPackagesByDep(arg)
+                 except yum.Errors.YumBaseError, e:
+                     self.logger.critical(_('%s') % e)
+-                
+-                instpkgs.extend(depmatches)
++
++                if update_to:
++                    availpkgs.extend(depmatches)
++                else:
++                    instpkgs.extend(depmatches)
+ 
+             #  Always look for available packages, it doesn't seem to do any
+             # harm (apart from some time). And it fixes weird edge cases where
+             # "update a" (which requires a new b) is different from "update b"
+             try:
+-                pats = [kwargs['pattern']]
+-                m = self.pkgSack.returnNewestByNameArch(patterns=pats)
++                if update_to:
++                    m = []
++                else:
++                    pats = [kwargs['pattern']]
++                    # pats += list(set([pkg.name for pkg in instpkgs]))
++                    m = self.pkgSack.returnNewestByNameArch(patterns=pats)
+             except Errors.PackageSackError:
+                 m = []
+             availpkgs.extend(m)
+diff --git a/yumcommands.py b/yumcommands.py
+index 41f0092..fd69f05 100644
+--- a/yumcommands.py
++++ b/yumcommands.py
+@@ -207,7 +207,7 @@ class InstallCommand(YumCommand):
+ 
+ class UpdateCommand(YumCommand):
+     def getNames(self):
+-        return ['update']
++        return ['update', 'update-to']
+ 
+     def getUsage(self):
+         return _("[PACKAGE...]")
+@@ -223,7 +223,7 @@ class UpdateCommand(YumCommand):
+     def doCommand(self, base, basecmd, extcmds):
+         self.doneCommand(base, _("Setting up Update Process"))
+         try:
+-            return base.updatePkgs(extcmds)
++            return base.updatePkgs(extcmds, update_to=(basecmd == 'update-to'))
+         except yum.Errors.YumBaseError, e:
+             return 1, [str(e)]
+ 
+@@ -691,7 +691,7 @@ class SearchCommand(YumCommand):
+ 
+ class UpgradeCommand(YumCommand):
+     def getNames(self):
+-        return ['upgrade']
++        return ['upgrade', 'upgrade-to']
+ 
+     def getUsage(self):
+         return 'PACKAGE...'
+@@ -708,7 +708,7 @@ class UpgradeCommand(YumCommand):
+         base.conf.obsoletes = 1
+         self.doneCommand(base, _("Setting up Upgrade Process"))
+         try:
+-            return base.updatePkgs(extcmds)
++            return base.updatePkgs(extcmds, update_to=(basecmd == 'upgrade-to'))
+         except yum.Errors.YumBaseError, e:
+             return 1, [str(e)]
+ 
+commit e36ea7d4dd847438fff6062e854419e5267fe2d0
+Author: James Antill <james@and.org>
+Date:   Wed Mar 30 18:01:05 2011 -0400
+
+    Add docs for update-to/upgrade-to, and explain update/upgrade behaviour.
+
+diff --git a/docs/yum.8 b/docs/yum.8
+index 0f1b1ba..39c7253 100644
+--- a/docs/yum.8
++++ b/docs/yum.8
+--- yum-3.2.22-orig/docs/yum.8	2011-06-14 10:40:06.427081318 -0400
++++ yum-3.2.22/docs/yum.8	2011-10-28 12:31:44.757653625 -0400
+@@ -23,10 +23,14 @@
+ .br 
+ .I \fR * update [package1] [package2] [\&.\&.\&.]
+ .br 
++.I \fR * update-to [package1] [package2] [\&.\&.\&.]
++.br 
+ .I \fR * check\-update
+ .br 
+ .I \fR * upgrade [package1] [package2] [\&.\&.\&.] 
+ .br
++.I \fR * upgrade-to [package1] [package2] [\&.\&.\&.] 
++.br
+ .I \fR * remove | erase package1 [package2] [\&.\&.\&.]
+ .br 
+ .I \fR * list [\&.\&.\&.]
+@@ -100,6 +104,16 @@
+ flag is present \fByum\fP will include package 
+ obsoletes in its calculations - this makes it better for distro\-version 
+ changes, for example: upgrading from somelinux 8.0 to somelinux 9.
++
++Note that "\fBupdate\fP" works on installed packages first, and only if there
++are no matches does it look for available packages. The difference is most
++noticable when you do "\fBupdate\fP foo-1-2" which will act exactly as
++"\fBupdate\fP foo" if foo-1-2 is installed. You can use the "\fBupdate-to\fP"
++if you'd prefer that nothing happen in the above case.
++.IP 
++.IP "\fBupdate-to\fP"
++This command works like "\fBupdate\fP" but always specifies the version of the
++package we want to update to.
+ .IP 
+ .IP "\fBcheck\-update\fP"
+ Implemented so you could know if your machine had any updates that needed to
+@@ -113,6 +127,10 @@
+ Is the same as the update command with the \-\-obsoletes flag set. See update 
+ for more details.
+ .IP 
++.IP "\fBupgrade-to\fP"
++This command works like "\fBupgrade\fP" but always specifies the version of the
++package we want to update to.
++.IP 
+ .IP "\fBremove\fP or \fBerase\fP"
+ Are used to remove the specified packages from the system
+ as well as removing any packages which depend on the package being

@@ -1,0 +1,46 @@
+commit 8e5929a321463cf6372aef3723e75d81b705bf8b
+Author: James Antill <james@and.org>
+Date:   Sat Apr 4 11:37:08 2009 -0400
+
+     Revert part of d0ed077f779050930cdcd09b2618966482a430bb.
+       Fix indentation change in pylint cleanup.
+
+diff --git a/yum/repos.py b/yum/repos.py
+index 0fba1c6..1c67489 100644
+--- a/yum/repos.py
++++ b/yum/repos.py
+@@ -76,8 +76,8 @@ class RepoStorage:
+             repo.setup(self.ayum.conf.cache, self.ayum.mediagrabber,
+                    gpg_import_func = self.gpg_import_func, confirm_func=self.confirm_func)
+             num += 1            
+-            if self.callback and len(repos) > 0:
+-                self.callback.progressbar(num, len(repos), repo.id)
++        if self.callback and len(repos) > 0:
++            self.callback.progressbar(num, len(repos), repo.id)
+ 
+         self._setup = True
+         self.ayum.plugins.run('postreposetup')
+commit d0e56312a3a016a214ba0741797fec6d86a24ea2
+Author: James Antill <james@and.org>
+Date:   Sun Apr 5 01:21:47 2009 -0400
+
+    Remove repo setup progress that does nothing
+
+diff --git a/yum/repos.py b/yum/repos.py
+index 1c67489..5d9a343 100644
+--- a/yum/repos.py
++++ b/yum/repos.py
+@@ -71,13 +71,9 @@ class RepoStorage:
+         if len(repos) < 1:
+             self.logger.debug('No Repositories Available to Set Up')
+ 
+-        num = 1
+         for repo in repos:
+             repo.setup(self.ayum.conf.cache, self.ayum.mediagrabber,
+                    gpg_import_func = self.gpg_import_func, confirm_func=self.confirm_func)
+-            num += 1            
+-        if self.callback and len(repos) > 0:
+-            self.callback.progressbar(num, len(repos), repo.id)
+ 
+         self._setup = True
+         self.ayum.plugins.run('postreposetup')

@@ -1,0 +1,153 @@
+commit 7cdcde9ffb03d66b202b6068ed90b370abe94a45
+Author: Ville Skyttä <ville.skytta@iki.fi>
+Date:   Tue Dec 8 20:04:53 2009 +0200
+
+    Move default urlgrabber options into _default_grabopts(), apply them
+    to mirrorlist grabs.
+    
+    This started off from noticing that our timeout doesn't get passed to
+    mirrorlist grabs, but while at it there was a bunch of other useful
+    options missing from that call and the options were unnecessarily
+    copied in several places.
+
+diff -ru yum-3.2.22-orig/yum/yumRepo.py yum-3.2.22/yum/yumRepo.py
+--- yum-3.2.22-orig/yum/yumRepo.py	2011-05-10 16:20:42.192342368 -0400
++++ yum-3.2.22/yum/yumRepo.py	2011-05-10 16:31:41.735214633 -0400
+@@ -446,12 +446,14 @@
+             self._proxy_dict['https'] = proxy_string
+             self._proxy_dict['ftp'] = proxy_string
+ 
+-    def __headersListFromDict(self):
++    def __headersListFromDict(self, cache=True):
+         """Convert our dict of headers to a list of 2-tuples for urlgrabber."""
+         headers = []
+ 
+         for key in self.http_headers:
+             headers.append((key, self.http_headers[key]))
++        if not (cache or 'Pragma' in self.http_headers):
++            headers.append(('Pragma', 'no-cache'))
+ 
+         return headers
+ 
+@@ -469,27 +471,30 @@
+         else:
+             mgclass = urlgrabber.mirror.MirrorGroup
+ 
+-        headers = tuple(self.__headersListFromDict())
+-
+-        self._grabfunc = URLGrabber(keepalive=self.keepalive,
+-                                    bandwidth=self.bandwidth,
+-                                    retry=self.retries,
+-                                    throttle=self.throttle,
+-                                    progress_obj=self.callback,
+-                                    proxies = self.proxy_dict,
++        ugopts = self._default_grabopts()
++        self._grabfunc = URLGrabber(progress_obj=self.callback,
+                                     failure_callback=self.failure_obj,
+                                     interrupt_callback=self.interrupt_callback,
+-                                    timeout=self.timeout,
+                                     copy_local=self.copy_local,
+-                                    http_headers=headers,
+                                     reget='simple',
+-                                    ssl_context = self._getSslContext())
+-
+-        self._grabfunc.opts.user_agent = default_grabber.opts.user_agent
++                                    **ugopts)
+ 
+         self._grab = mgclass(self._grabfunc, self.urls,
+                              failure_callback=self.mirror_failure_obj)
+ 
++    def _default_grabopts(self, cache=True):
++        opts = { 'keepalive': self.keepalive,
++                 'bandwidth': self.bandwidth,
++                 'retry': self.retries,
++                 'throttle': self.throttle,
++                 'proxies': self.proxy_dict,
++                 'timeout': self.timeout,
++                 'http_headers': tuple(self.__headersListFromDict(cache=cache)),
++                 'ssl_context' : self._getSslContext(),
++                 'user_agent': default_grabber.opts.user_agent,
++                 }
++        return opts
++
+     def _getgrabfunc(self):
+         if not self._grabfunc or self._callbacks_changed:
+             self._setupGrab()
+@@ -687,13 +692,9 @@
+             local = self.metalink_filename + '.tmp'
+             if not self._metalinkCurrent():
+                 url = misc.to_utf8(self.metalink)
++                ugopts = self._default_grabopts()
+                 try:
+-                    ug = URLGrabber(bandwidth = self.bandwidth,
+-                                    retry = self.retries,
+-                                    throttle = self.throttle,
+-                                    progress_obj = self.callback,
+-                                    proxies=self.proxy_dict)
+-                    ug.opts.user_agent = default_grabber.opts.user_agent
++                    ug = URLGrabber(progress_obj = self.callback, **ugopts)
+                     result = ug.urlgrab(url, local, text=self.id + "/metalink")
+ 
+                 except urlgrabber.grabber.URLGrabError, e:
+@@ -738,15 +739,6 @@
+         # if url is None do a grab via the mirror group/grab for the repo
+         # return the path to the local file
+ 
+-        # Turn our dict into a list of 2-tuples
+-        headers = self.__headersListFromDict()
+-
+-        # We will always prefer to send no-cache.
+-        if not (cache or self.http_headers.has_key('Pragma')):
+-            headers.append(('Pragma', 'no-cache'))
+-
+-        headers = tuple(headers)
+-
+         # if copylocal isn't specified pickup the repo-defined attr
+         if copy_local is None:
+             copy_local = self.copy_local
+@@ -782,23 +774,14 @@
+                 verbose_logger.log(logginglevels.DEBUG_2, "Error getting package from media; falling back to url %s" %(e,))
+ 
+         if url and scheme != "media":
+-            ug = URLGrabber(keepalive = self.keepalive,
+-                            bandwidth = self.bandwidth,
+-                            retry = self.retries,
+-                            throttle = self.throttle,
+-                            progress_obj = self.callback,
++            ugopts = self._default_grabopts(cache=cache)
++            ug = URLGrabber(progress_obj = self.callback,
+                             copy_local = copy_local,
+                             reget = reget,
+-                            proxies = self.proxy_dict,
+                             failure_callback = self.failure_obj,
+                             interrupt_callback=self.interrupt_callback,
+-                            timeout=self.timeout,
+                             checkfunc=checkfunc,
+-                            http_headers=headers,
+-                            ssl_ca_cert = self.sslcacert
+-                            )
+-
+-            ug.opts.user_agent = default_grabber.opts.user_agent
++                            **ugopts)
+ 
+             remote = url + '/' + relative
+ 
+@@ -816,6 +799,7 @@
+ 
+ 
+         else:
++            headers = tuple(self.__headersListFromDict(cache=cache))
+             try:
+                 result = self.grab.urlgrab(misc.to_utf8(relative), local,
+                                            text = misc.to_utf8(text),
+@@ -1632,8 +1616,9 @@
+             scheme = urlparse.urlparse(url)[0]
+             if scheme == '':
+                 url = 'file://' + url
++            ugopts = self._default_grabopts()
+             try:
+-                fo = urlgrabber.grabber.urlopen(url, proxies=self.proxy_dict)
++                fo = urlgrabber.grabber.urlopen(url, **ugopts)
+             except urlgrabber.grabber.URLGrabError, e:
+                 print "Could not retrieve mirrorlist %s error was\n%s" % (url, e)
+                 fo = None

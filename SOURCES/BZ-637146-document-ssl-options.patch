@@ -1,0 +1,89 @@
+commit 9878b587200cbe7e87c43739ceaf386ffbf67569
+Author: Seth Vidal <skvidal@fedoraproject.org>
+Date:   Thu Aug 27 11:51:43 2009 -0400
+
+    document the ssl options
+
+diff --git a/docs/yum.conf.5 b/docs/yum.conf.5
+index ff24099..69b601d 100644
+--- a/docs/yum.conf.5
++++ b/docs/yum.conf.5
+@@ -254,6 +254,26 @@ with the \fBthrottle\fR option (above). If \fBthrottle\fR is a percentage and
+ ignored. Default is `0' (no bandwidth throttling). 
+ 
+ .IP
++\fBsslcacert \fR
++Path to the directory containing the databases of the certificate authorities
++yum should use to verify ssl certificates. Defaults to none - uses system
++default
++
++.IP
++\fBsslverify \fR
++Boolean - should yum verify ssl certificates/hosts at all. Defaults to True
++
++.IP
++\fBsslclientcert \fR
++Path to the ssl client certificate yum should use to connect to repos/remote sites
++Defaults to none.
++
++.IP
++\fBsslclientkey \fR
++Path to the ssl client key yum should use to connect to repos/remote sites
++Defaults to none.
++
++.IP
+ \fBcommands\fR
+ List of functional commands to run if no functional commands are specified
+ on the command line (eg. "update foo bar baz quux").  None of the short options
+@@ -605,6 +625,28 @@ repository.
+ Overrides the \fBbandwidth\fR option from the [main] section for this
+ repository.
+ 
++
++.IP
++\fBsslcacert \fR
++Overrides the \fBsslcacert\fR option from the [main] section for this
++repository.
++
++.IP
++\fBsslverify \fR
++Overrides the \fBsslverify\fR option from the [main] section for this
++repository.
++
++.IP
++\fBsslclientcert \fR
++Overrides the \fBsslclientcert\fR option from the [main] section for this
++repository.
++
++.IP
++\fBsslclientkey \fR
++Overrides the \fBsslclientkey\fR option from the [main] section for this
++repository.
++
++
+ .IP
+ \fBmetadata_expire \fR
+ Overrides the \fBmetadata_expire\fR option from the [main] section for this
+diff -ru yum-3.2.22-orig/docs/yum.conf.5 yum-3.2.22/docs/yum.conf.5
+--- yum-3.2.22-orig/docs/yum.conf.5	2010-09-29 00:04:19.822907522 -0400
++++ yum-3.2.22/docs/yum.conf.5	2010-09-29 00:05:33.270756896 -0400
+@@ -256,12 +256,15 @@
+ .IP
+ \fBsslcacert \fR
+ Path to the directory containing the databases of the certificate authorities
+-yum should use to verify ssl certificates. Defaults to none - uses system
+-default
++yum should use to verify ssl certificates. Defaults to none (no CA certs).
+ 
+ .IP
+ \fBsslverify \fR
+-Boolean - should yum verify ssl certificates/hosts at all. Defaults to True
++Boolean - should yum verify ssl certificates/hosts at all. Defaults to False.
++
++Note that the plugin yum-rhn-plugin will force this value to true, and may
++alter other ssl settings (like hostname checking), even if it the machine
++is not registered.
+ 
+ .IP
+ \fBsslclientcert \fR
+Only in yum-3.2.22/docs: yum.conf.5~

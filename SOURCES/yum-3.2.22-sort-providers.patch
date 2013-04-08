@@ -1,0 +1,95 @@
+commit 568eaf5b88f376a1822396fd9dc7324d1aed23ea
+Author: Seth Vidal <skvidal@fedoraproject.org>
+Date:   Mon Apr 6 11:15:56 2009 -0400
+
+    do the obsoletes check in compare_providers() properly.
+
+diff --git a/yum/depsolve.py b/yum/depsolve.py
+index fdf48a3..48e3c65 100644
+--- a/yum/depsolve.py
++++ b/yum/depsolve.py
+@@ -1084,17 +1084,14 @@ class Depsolve(object):
+                 if po == nextpo:
+                     continue
+                 obsoleted = False
+-                for obs in nextpo.obsoletes:
+-                    if po.inPrcoRange('provides', obs):
+-                        obsoleted = True
++                poprovtup = (po.name, 'EQ', (po.epoch, po.ver, po.release))
++                if nextpo.inPrcoRange('obsoletes', poprovtup):
++                    obsoleted = True
++                    pkgresults[po] -= 1024
+                                 
+-                        self.verbose_logger.log(logginglevels.DEBUG_4,
+-                            _("%s obsoletes %s") % (po, nextpo))
++                    self.verbose_logger.log(logginglevels.DEBUG_4,
++                        _("%s obsoletes %s") % (nextpo, po))
+ 
+-                    if obsoleted:
+-                        pkgresults[po] -= 1024
+-                        break
+-                
+                 if reqpo:
+                     arches = (reqpo.arch, getBestArch())
+                 else:
+commit 257d17f95743a679b62807dd4eb6d29c6b628f5c
+Author: Seth Vidal <skvidal@fedoraproject.org>
+Date:   Mon Apr 6 11:19:37 2009 -0400
+
+    really apply the returnPackageByDep() patch
+
+diff --git a/yum/__init__.py b/yum/__init__.py
+index d112d24..8ce96ef 100644
+--- a/yum/__init__.py
++++ b/yum/__init__.py
+@@ -55,7 +55,7 @@ import transactioninfo
+ import urlgrabber
+ from urlgrabber.grabber import URLGrabber, URLGrabError
+ from urlgrabber.progress import format_number
+-from packageSack import packagesNewestByNameArch
++from packageSack import packagesNewestByNameArch, ListPackageSack
+ import depsolve
+ import plugins
+ import logginglevels
+@@ -2284,7 +2284,8 @@ class YumBase(depsolve.Depsolve):
+         except Errors.YumBaseError:
+             raise Errors.YumBaseError, _('No Package found for %s') % depstring
+         
+-        result = self._bestPackageFromList(pkglist)
++        ps = ListPackageSack(pkglist)
++        result = self._bestPackageFromList(ps.returnNewestByNameArch())
+         if result is None:
+             raise Errors.YumBaseError, _('No Package found for %s') % depstring
+         
+commit e377aed21c9da6c52ece5ad937d695f432a255f4
+Author: James Antill <james@and.org>
+Date:   Mon Apr 6 11:23:57 2009 -0400
+
+    Sort pkgs normally, which have the same score.
+
+diff --git a/yum/depsolve.py b/yum/depsolve.py
+index 48e3c65..819adac 100644
+--- a/yum/depsolve.py
++++ b/yum/depsolve.py
+@@ -996,6 +996,12 @@ class Depsolve(object):
+         self.verbose_logger.log(logginglevels.DEBUG_4,
+               _("Running compare_providers() for %s") %(str(pkgs)))
+ 
++        def _cmp_best_providers(x, y):
++            """ Compare first by score, and then compare the pkgs if the score
++                is the same. Note that this sorts in reverse. """
++            ret = cmp(y[1], x[1])
++            if ret: return ret
++            return cmp(y[0], x[0])
+         
+         def _common_prefix_len(x, y, minlen=2):
+             num = min(len(x), len(y))
+@@ -1121,7 +1127,7 @@ class Depsolve(object):
+             
+             pkgresults[po] += (len(po.name)*-1)
+ 
+-        bestorder = sorted(pkgresults.items(), key=itemgetter(1), reverse=True)
++        bestorder = sorted(pkgresults.items(), cmp=_cmp_best_providers)
+         self.verbose_logger.log(logginglevels.DEBUG_4,
+                 _('Best Order: %s' % str(bestorder)))
+ 

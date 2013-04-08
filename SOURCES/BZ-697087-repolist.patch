@@ -1,0 +1,529 @@
+commit fd1632c733c47719fb7e69d7e2a9d18f7c05b0ad
+Author: James Antill <james@and.org>
+Date:   Tue Aug 11 13:33:27 2009 -0400
+
+     Add expire data to repolist -v
+    
+     This should give enough data to diagnose if there is a problem updating
+    the repo metadata ... as we know have:
+    
+    1. Latest version from metalink.
+    2. Version we have.
+    3. Last time we checked (and how often / how long until we check again)
+    
+    ...just use seconds, and need to think about how to get some colour in
+    here, for Seth :).
+
+diff --git a/yumcommands.py b/yumcommands.py
+index edaddfd..488f831 100644
+--- a/yumcommands.py
++++ b/yumcommands.py
+@@ -871,6 +871,22 @@ class RepoListCommand(YumCommand):
+                         out += [base.fmtKeyValFill(_("Repo-mirrors: "),
+                                                    repo.mirrorlist)]
+ 
++                    if not os.path.exists(repo.metadata_cookie):
++                        last = _("Unknown")
++                    else:
++                        last = os.stat(repo.metadata_cookie).st_mtime
++                        last = time.ctime(last)
++
++                    if repo.metadata_expire <= -1:
++                        num = _("Never (last: %s)") % last
++                    elif not repo.metadata_expire:
++                        num = _("Instant (last: %s)") % last
++                    else:
++                        num = locale.format("%d", repo.metadata_expire, True)
++                        num = _("%s second(s) (last: %s)") % (num, last)
++
++                    out += [base.fmtKeyValFill(_("Repo-expire : "), num)]
++
+                     if repo.exclude:
+                         out += [base.fmtKeyValFill(_("Repo-exclude: "),
+                                                    ", ".join(repo.exclude))]
+commit 7eaae631092cdd2d09ece8b87b648ca316c909fe
+Author: James Antill <james@and.org>
+Date:   Tue Aug 11 17:01:07 2009 -0400
+
+    Cleanup whitespace for repolist -v
+
+diff --git a/yumcommands.py b/yumcommands.py
+index 488f831..bd73d0c 100644
+--- a/yumcommands.py
++++ b/yumcommands.py
+@@ -824,15 +824,15 @@ class RepoListCommand(YumCommand):
+                         md = repo.repoXML
+                     else:
+                         md = None
+-                    out = [base.fmtKeyValFill(_("Repo-id     : "), repo),
+-                           base.fmtKeyValFill(_("Repo-name   : "), repo.name),
+-                           base.fmtKeyValFill(_("Repo-status : "), ui_enabled)]
++                    out = [base.fmtKeyValFill(_("Repo-id      : "), repo),
++                           base.fmtKeyValFill(_("Repo-name    : "), repo.name),
++                           base.fmtKeyValFill(_("Repo-status  : "), ui_enabled)]
+                     if md and md.revision is not None:
+                         out += [base.fmtKeyValFill(_("Repo-revision: "),
+                                                    md.revision)]
+                     if md and md.tags['content']:
+                         tags = md.tags['content']
+-                        out += [base.fmtKeyValFill(_("Repo-tags   : "),
++                        out += [base.fmtKeyValFill(_("Repo-tags    : "),
+                                                    ", ".join(sorted(tags)))]
+ 
+                     if md and md.tags['distro']:
+@@ -843,17 +843,17 @@ class RepoListCommand(YumCommand):
+                                                        ", ".join(sorted(tags))))]
+ 
+                     if md:
+-                        out += [base.fmtKeyValFill(_("Repo-updated: "),
++                        out += [base.fmtKeyValFill(_("Repo-updated : "),
+                                                    time.ctime(md.timestamp)),
+-                                base.fmtKeyValFill(_("Repo-pkgs   : "), ui_num),
+-                                base.fmtKeyValFill(_("Repo-size   : "),ui_size)]
++                                base.fmtKeyValFill(_("Repo-pkgs    : "),ui_num),
++                                base.fmtKeyValFill(_("Repo-size    : "),ui_size)]
+ 
+                     if hasattr(repo, '_orig_baseurl'):
+                         baseurls = repo._orig_baseurl
+                     else:
+                         baseurls = repo.baseurl
+                     if baseurls:
+-                        out += [base.fmtKeyValFill(_("Repo-baseurl: "),
++                        out += [base.fmtKeyValFill(_("Repo-baseurl : "),
+                                                    ", ".join(baseurls))]
+ 
+                     if enabled:
+@@ -868,7 +868,7 @@ class RepoListCommand(YumCommand):
+                             out += [base.fmtKeyValFill(_("  Updated    : "),
+                                                        time.ctime(ts))]
+                     elif repo.mirrorlist:
+-                        out += [base.fmtKeyValFill(_("Repo-mirrors: "),
++                        out += [base.fmtKeyValFill(_("Repo-mirrors : "),
+                                                    repo.mirrorlist)]
+ 
+                     if not os.path.exists(repo.metadata_cookie):
+@@ -885,14 +885,14 @@ class RepoListCommand(YumCommand):
+                         num = locale.format("%d", repo.metadata_expire, True)
+                         num = _("%s second(s) (last: %s)") % (num, last)
+ 
+-                    out += [base.fmtKeyValFill(_("Repo-expire : "), num)]
++                    out += [base.fmtKeyValFill(_("Repo-expire  : "), num)]
+ 
+                     if repo.exclude:
+-                        out += [base.fmtKeyValFill(_("Repo-exclude: "),
++                        out += [base.fmtKeyValFill(_("Repo-exclude : "),
+                                                    ", ".join(repo.exclude))]
+ 
+                     if repo.includepkgs:
+-                        out += [base.fmtKeyValFill(_("Repo-include: "),
++                        out += [base.fmtKeyValFill(_("Repo-include : "),
+                                                    ", ".join(repo.includepkgs))]
+ 
+                     base.verbose_logger.log(logginglevels.DEBUG_3,
+commit 2ffe59eb3e441f3fce3038d1c19079cc5c59eb74
+Author: James Antill <james@and.org>
+Date:   Mon Sep 21 02:05:29 2009 -0400
+
+    Catch and ignore any repo. errors, and allow cache only (BZ 524454)
+
+diff --git a/yumcommands.py b/yumcommands.py
+index bd73d0c..3d88ee4 100644
+--- a/yumcommands.py
++++ b/yumcommands.py
+@@ -778,13 +778,17 @@ class RepoListCommand(YumCommand):
+             arg = 'enabled'
+         extcmds = map(lambda x: x.lower(), extcmds)
+ 
+-        # Setup so len(repo.sack) is correct
+-        base.repos.populateSack()
++        verbose = base.verbose_logger.isEnabledFor(logginglevels.DEBUG_3)
++        try:
++            # Setup so len(repo.sack) is correct
++            base.repos.populateSack()
++        except yum.Errors.RepoError:
++            if verbose:
++                raise
+ 
+         repos = base.repos.repos.values()
+         repos.sort()
+         enabled_repos = base.repos.listEnabled()
+-        verbose = base.verbose_logger.isEnabledFor(logginglevels.DEBUG_3)
+         if arg == 'all':
+             ehibeg = base.term.FG_COLOR['green'] + base.term.MODE['bold']
+             dhibeg = base.term.FG_COLOR['red']
+commit 1934f8832dc22802913ce79eb45724f10d44edc8
+Author: Ville-Pekka Vainio <vpivaini@cs.helsinki.fi>
+Date:   Mon Nov 16 20:38:50 2009 +0200
+
+    Fix UnicodeDecodeErrors in yumcommands.py
+    
+    Fix two UnicodeDecodeErrors which were raised when running 'yum -v
+    repolist' in fi_FI.utf8 with the yet uncommitted Finnish translation.
+
+diff --git a/yumcommands.py b/yumcommands.py
+index c0504a6..d13f84a 100644
+--- a/yumcommands.py
++++ b/yumcommands.py
+@@ -23,6 +23,7 @@ import os
+ import cli
+ from yum import logginglevels
+ from yum import _
++from yum import misc
+ import yum.Errors
+ import operator
+ import locale
+@@ -890,7 +891,7 @@ class RepoListCommand(YumCommand):
+                         num = _("Instant (last: %s)") % last
+                     else:
+                         num = locale.format("%d", repo.metadata_expire, True)
+-                        num = _("%s second(s) (last: %s)") % (num, last)
++                        num = _("%s second(s) (last: %s)") % (misc.to_unicode(num), last)
+ 
+                     out += [base.fmtKeyValFill(_("Repo-expire  : "), num)]
+ 
+@@ -904,7 +905,7 @@ class RepoListCommand(YumCommand):
+ 
+                     base.verbose_logger.log(logginglevels.DEBUG_3,
+                                             "%s\n",
+-                                            "\n".join(out))
++                                            "\n".join(map(misc.to_unicode, out)))
+ 
+         if not verbose and cols:
+             #  Work out the first (id) and last (enabled/disalbed/count),
+commit 4aa1a6639a1544bc714b75b61d5cbf9d5ce34fc3
+Author: James Antill <james@and.org>
+Date:   Tue Dec 1 10:06:09 2009 -0500
+
+    Make status output nicer for repolist disabled/all/enabled, BZ 540489
+
+diff --git a/yumcommands.py b/yumcommands.py
+index b809216..002164b 100644
+--- a/yumcommands.py
++++ b/yumcommands.py
+@@ -803,10 +803,14 @@ class RepoListCommand(YumCommand):
+         for repo in repos:
+             if len(extcmds) and not _repo_match(repo, extcmds):
+                 continue
++            if arg != 'all':
++                ui_enabled = ''
++                ui_endis_wid = 0
+             if repo in enabled_repos:
+                 enabled = True
+-                ui_enabled = ehibeg + _('enabled') + hiend + ": "
+-                ui_endis_wid = utf8_width(_('enabled')) + 2
++                if arg == 'all':
++                    ui_enabled = ehibeg + _('enabled') + hiend + ": "
++                    ui_endis_wid = utf8_width(_('enabled')) + 2
+                 num        = len(repo.sack)
+                 tot_num   += num
+                 ui_num     = to_unicode(locale.format("%d", num, True))
+@@ -921,7 +925,9 @@ class RepoListCommand(YumCommand):
+                     ct_len = ui_endis_wid
+                 if ui_len < len(ui_num):
+                     ui_len = len(ui_num)
+-            if utf8_width(_('status')) > ct_len + ui_len:
++            if arg == 'disabled': # Don't output a status column.
++                left = base.term.columns - (id_len + 1)
++            elif utf8_width(_('status')) > ct_len + ui_len:
+                 left = base.term.columns - (id_len + utf8_width(_('status')) +2)
+             else:
+                 left = base.term.columns - (id_len + ct_len + ui_len + 2)
+@@ -935,9 +941,20 @@ class RepoListCommand(YumCommand):
+ 
+             txt_rid  = utf8_width_fill(_('repo id'), id_len)
+             txt_rnam = utf8_width_fill(_('repo name'), nm_len, nm_len)
+-            base.verbose_logger.log(logginglevels.INFO_2,"%s %s %s",
+-                                    txt_rid, txt_rnam, _('status'))
++            if arg == 'disabled': # Don't output a status column.
++                base.verbose_logger.log(logginglevels.INFO_2,"%s %s",
++                                        txt_rid, txt_rnam)
++            else:
++                base.verbose_logger.log(logginglevels.INFO_2,"%s %s %s",
++                                        txt_rid, txt_rnam, _('status'))
+             for (rid, rname, (ui_enabled, ui_endis_wid), ui_num) in cols:
++                if arg == 'disabled': # Don't output a status column.
++                    base.verbose_logger.log(logginglevels.INFO_2, "%s %s",
++                                            utf8_width_fill(rid, id_len),
++                                            utf8_width_fill(rname, nm_len,
++                                                            nm_len))
++                    continue
++
+                 if ui_num:
+                     ui_num = utf8_width_fill(ui_num, ui_len, left=False)
+                 base.verbose_logger.log(logginglevels.INFO_2, "%s %s %s%s",
+commit ac8eed8587a347dddf827efd1c0d7ab8674b2a79
+Author: James Antill <james@and.org>
+Date:   Sat Jan 16 12:42:51 2010 -0500
+
+     A few minor tweaks to repolist output:
+    
+    . Don't output "stats: enabled:" with repolist -v
+    
+    . Output a * for metalink repos. which don't have the latest MD, in
+    normal repolist.
+    
+    . Allow user to do: "yum repolist rawhide" and it'll be displayed even
+    if rawhide isn't enabled. Instead of having to do:
+     yum repolist all rawhide
+    
+    . Output something close to real package numbers, and number of excluded
+    packages. It's not 100% because we skip it when there are no user configured
+    excludes so 'src' packages etc. don't count then. But this should help
+    with "BUG: yum can't update foo" => "oops. foo was excluded".
+    
+    . Tweak column sizing for "yum repolist all updates rawhide".
+    
+    . Update man page.
+
+diff --git a/docs/yum.8 b/docs/yum.8
+index 2b063b1..8d42d9d 100644
+--- a/docs/yum.8
++++ b/docs/yum.8
+@@ -223,7 +223,17 @@ dependencies for the given packages.
+ .IP "\fBrepolist\fP"
+ Produces a list of configured repositories. The default is to list all
+ enabled repositories. If you pass -v, for verbose mode, more information is
+-listed.
++listed. If the first argument is 'enabled', 'disabled' or 'all' then the command
++will list those types of repos.
++
++You can pass repo id or name arguments, or wildcards which to match against
++both of those. However if the ir or name matches exactly then the repo will
++be listed even if you are listing enabled repos. and it is disabled.
++
++In non-verbose mode the first column will start with a '*' if the repo. has
++metalink data and the latest metadata is not local. For non-verbose mode the
++last column will also display the number of packages in the repo. and (if there
++are any user specified excludes) the number of packages excluded.
+ .IP
+ .IP "\fBhelp\fP"
+ Produces help, either for all commands or if given a command name then the help
+diff --git a/yumcommands.py b/yumcommands.py
+index 21ad361..635e4ec 100644
+--- a/yumcommands.py
++++ b/yumcommands.py
+@@ -772,6 +772,9 @@ class RepoListCommand(YumCommand):
+                     return True
+             return False
+ 
++        def _num2ui_num(num):
++            return to_unicode(locale.format("%d", num, True))
++
+         if len(extcmds) >= 1 and extcmds[0] in ('all', 'disabled', 'enabled'):
+             arg = extcmds[0]
+             extcmds = extcmds[1:]
+@@ -790,42 +793,69 @@ class RepoListCommand(YumCommand):
+         repos = base.repos.repos.values()
+         repos.sort()
+         enabled_repos = base.repos.listEnabled()
+-        if arg == 'all':
+-            ehibeg = base.term.FG_COLOR['green'] + base.term.MODE['bold']
+-            dhibeg = base.term.FG_COLOR['red']
+-            hiend  = base.term.MODE['normal']
+-        else:
+-            ehibeg = ''
+-            dhibeg = ''
+-            hiend  = ''
++        on_ehibeg = base.term.FG_COLOR['green'] + base.term.MODE['bold']
++        on_dhibeg = base.term.FG_COLOR['red']
++        on_hiend  = base.term.MODE['normal']
+         tot_num = 0
+         cols = []
++        if arg != 'disabled' or verbose:
++            base.pkgSack # Need to setup the pkgSack, so excludes work
+         for repo in repos:
+             if len(extcmds) and not _repo_match(repo, extcmds):
+                 continue
+-            if arg != 'all':
+-                ui_enabled = ''
+-                ui_endis_wid = 0
++            (ehibeg, dhibeg, hiend)  = '', '', ''
++            ui_enabled      = ''
++            ui_endis_wid    = 0
++            ui_num          = ""
++            ui_excludes_num = ''
++            force_show = False
++            if arg == 'all' or repo.id in extcmds or repo.name in extcmds:
++                force_show = True
++                (ehibeg, dhibeg, hiend) = (on_ehibeg, on_dhibeg, on_hiend)
+             if repo in enabled_repos:
+                 enabled = True
+-                if arg == 'all':
+-                    ui_enabled = ehibeg + _('enabled') + hiend + ": "
+-                    ui_endis_wid = utf8_width(_('enabled')) + 2
+-                num        = len(repo.sack)
+-                tot_num   += num
+-                ui_num     = to_unicode(locale.format("%d", num, True))
++                if arg == 'enabled':
++                    force_show = False
++                elif arg == 'disabled' and not force_show:
++                    continue
++                if force_show or verbose:
++                    ui_enabled = ehibeg + _('enabled') + hiend
++                    ui_endis_wid = utf8_width(_('enabled'))
++                    if not verbose:
++                        ui_enabled += ": "
++                        ui_endis_wid += 2
+                 if verbose:
+                     ui_size = _repo_size(repo)
++                # We don't show status for list disabled
++                if arg != 'disabled' or verbose:
++                    if verbose or base.conf.exclude or repo.exclude:
++                        num        = len(repo.sack.simplePkgList())
++                    else:
++                        num        = len(repo.sack)
++                    ui_num     = _num2ui_num(num)
++                    excludes   = repo.sack._excludes
++                    excludes   = len([pid for r,pid in excludes if r == repo])
++                    if excludes:
++                        ui_excludes_num = _num2ui_num(excludes)
++                        if not verbose:
++                            ui_num += "+%s" % ui_excludes_num
++                    tot_num   += num
+             else:
+                 enabled = False
++                if arg == 'disabled':
++                    force_show = False
++                elif arg == 'enabled' and not force_show:
++                    continue
+                 ui_enabled = dhibeg + _('disabled') + hiend
+                 ui_endis_wid = utf8_width(_('disabled'))
+-                ui_num     = ""
+-                
+-            if (arg == 'all' or
+-                (arg == 'enabled' and enabled) or
+-                (arg == 'disabled' and not enabled)):
++
++            if True: # Here to make patch smaller, TODO: rm
+                 if not verbose:
++                    rid = str(repo)
++                    if enabled and repo.metalink:
++                        mdts = repo.metalink_data.repomd.timestamp
++                        if mdts > repo.repoXML.timestamp:
++                            rid = '*' + rid
+                     cols.append((str(repo), repo.name,
+                                  (ui_enabled, ui_endis_wid), ui_num))
+                 else:
+@@ -834,8 +864,11 @@ class RepoListCommand(YumCommand):
+                     else:
+                         md = None
+                     out = [base.fmtKeyValFill(_("Repo-id      : "), repo),
+-                           base.fmtKeyValFill(_("Repo-name    : "), repo.name),
+-                           base.fmtKeyValFill(_("Repo-status  : "), ui_enabled)]
++                           base.fmtKeyValFill(_("Repo-name    : "), repo.name)]
++
++                    if force_show or extcmds:
++                        out += [base.fmtKeyValFill(_("Repo-status  : "),
++                                                   ui_enabled)]
+                     if md and md.revision is not None:
+                         out += [base.fmtKeyValFill(_("Repo-revision: "),
+                                                    md.revision)]
+@@ -891,8 +924,8 @@ class RepoListCommand(YumCommand):
+                     elif not repo.metadata_expire:
+                         num = _("Instant (last: %s)") % last
+                     else:
+-                        num = locale.format("%d", repo.metadata_expire, True)
+-                        num = _("%s second(s) (last: %s)") % (misc.to_unicode(num), last)
++                        num = _num2ui_num(repo.metadata_expire)
++                        num = _("%s second(s) (last: %s)") % (num, last)
+ 
+                     out += [base.fmtKeyValFill(_("Repo-expire  : "), num)]
+ 
+@@ -904,6 +937,10 @@ class RepoListCommand(YumCommand):
+                         out += [base.fmtKeyValFill(_("Repo-include : "),
+                                                    ", ".join(repo.includepkgs))]
+ 
++                    if ui_excludes_num:
++                        out += [base.fmtKeyValFill(_("Repo-excluded: "),
++                                                   ui_excludes_num)]
++
+                     base.verbose_logger.log(logginglevels.DEBUG_3,
+                                             "%s\n",
+                                             "\n".join(map(misc.to_unicode, out)))
+@@ -913,7 +950,7 @@ class RepoListCommand(YumCommand):
+             # then chop the middle (name)...
+             id_len = utf8_width(_('repo id'))
+             nm_len = 0
+-            ct_len = 0
++            st_len = 0
+             ui_len = 0
+ 
+             for (rid, rname, (ui_enabled, ui_endis_wid), ui_num) in cols:
+@@ -921,16 +958,17 @@ class RepoListCommand(YumCommand):
+                     id_len = utf8_width(rid)
+                 if nm_len < utf8_width(rname):
+                     nm_len = utf8_width(rname)
+-                if ct_len < ui_endis_wid:
+-                    ct_len = ui_endis_wid
++                if st_len < (ui_endis_wid + len(ui_num)):
++                    st_len = (ui_endis_wid + len(ui_num))
++                # Need this as well as above for: utf8_width_fill()
+                 if ui_len < len(ui_num):
+                     ui_len = len(ui_num)
+             if arg == 'disabled': # Don't output a status column.
+                 left = base.term.columns - (id_len + 1)
+-            elif utf8_width(_('status')) > ct_len + ui_len:
++            elif utf8_width(_('status')) > st_len:
+                 left = base.term.columns - (id_len + utf8_width(_('status')) +2)
+             else:
+-                left = base.term.columns - (id_len + ct_len + ui_len + 2)
++                left = base.term.columns - (id_len + st_len + 2)
+ 
+             if left < nm_len: # Name gets chopped
+                 nm_len = left
+commit 7f9d8c86ed44f3826288c86bf74e9366b22ac532
+Author: James Antill <james@and.org>
+Date:   Mon Jan 18 08:42:14 2010 -0500
+
+    Fix the repolist cacheonly feature, document it
+
+diff --git a/docs/yum.8 b/docs/yum.8
+index 2b063b1..8d42d9d 100644
+--- a/docs/yum.8
++++ b/docs/yum.8
+@@ -240,6 +240,11 @@ In non-verbose mode the first column will start with a '*' if the repo. has
+ metalink data and the latest metadata is not local. For non-verbose mode the
+ last column will also display the number of packages in the repo. and (if there
+ are any user specified excludes) the number of packages excluded.
++
++One last special feature of repolist, is that if you are in non-verbose mode
++then yum will ignore any repo errors and output the information it can get
++(Eg. "yum clean all; yum -C repolist" will output something, although the
++package counts/etc. will be zeroed out).
+ .IP
+ .IP "\fBhelp\fP"
+ Produces help, either for all commands or if given a command name then the help
+diff --git a/yumcommands.py b/yumcommands.py
+index 635e4ec..6e410d0 100644
+--- a/yumcommands.py
++++ b/yumcommands.py
+@@ -783,12 +783,14 @@ class RepoListCommand(YumCommand):
+         extcmds = map(lambda x: x.lower(), extcmds)
+ 
+         verbose = base.verbose_logger.isEnabledFor(logginglevels.DEBUG_3)
+-        try:
+-            # Setup so len(repo.sack) is correct
+-            base.repos.populateSack()
+-        except yum.Errors.RepoError:
+-            if verbose:
+-                raise
++        if arg != 'disabled' or extcmds:
++            try:
++                # Setup so len(repo.sack) is correct
++                base.repos.populateSack()
++                base.pkgSack # Need to setup the pkgSack, so excludes work
++            except yum.Errors.RepoError:
++                if verbose:
++                    raise
+ 
+         repos = base.repos.repos.values()
+         repos.sort()
+@@ -798,8 +800,6 @@ class RepoListCommand(YumCommand):
+         on_hiend  = base.term.MODE['normal']
+         tot_num = 0
+         cols = []
+-        if arg != 'disabled' or verbose:
+-            base.pkgSack # Need to setup the pkgSack, so excludes work
+         for repo in repos:
+             if len(extcmds) and not _repo_match(repo, extcmds):
+                 continue

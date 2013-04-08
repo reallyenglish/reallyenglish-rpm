@@ -1,0 +1,36 @@
+commit 8926e470de14a87ec6c653aa65c7522306cc6ae2
+Author: James Antill <james@and.org>
+Date:   Tue Aug 26 16:40:00 2008 -0400
+
+    Change man pages to say /etc/yum.conf etc.
+
+diff --git a/docs/yum.8 b/docs/yum.8
+index 4b82533..7b7175b 100644
+--- a/docs/yum.8
++++ b/docs/yum.8
+@@ -400,8 +400,8 @@ configuration options.
+ .PP
+ .SH "FILES"
+ .nf
+-/etc/yum/yum.conf
+-/etc/yum/repos.d/
++/etc/yum.conf
++/etc/yum.repos.d/
+ /etc/yum/pluginconf.d/
+ /var/cache/yum/
+ .fi 
+diff --git a/docs/yum.conf.5 b/docs/yum.conf.5
+index 415f84b..241cb85 100644
+--- a/docs/yum.conf.5
++++ b/docs/yum.conf.5
+@@ -483,8 +483,8 @@ configuration file variable will not be replaced.
+ 
+ .SH "FILES"
+ .nf
+-/etc/yum/yum.conf
+-/etc/yum/repos.d/
++/etc/yum.conf
++/etc/yum.repos.d/
+ /etc/yum/pluginconf.d/
+ 
+ .SH "SEE ALSO"

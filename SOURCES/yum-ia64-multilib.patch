@@ -1,0 +1,37 @@
+commit 4d2d5fd8853c4e187d16aab3622cf90f8079d9ce
+Author: James Antill <james@and.org>
+Date:   Thu Nov 6 19:20:43 2008 -0500
+
+    Allow ia64 to use ia32 on RHEL-5
+
+diff --git a/rpmUtils/arch.py b/rpmUtils/arch.py
+index d90659d..3f39150 100644
+--- a/rpmUtils/arch.py
++++ b/rpmUtils/arch.py
+@@ -67,7 +67,7 @@ arches = {
+     "sh3": "noarch",
+     
+     #itanium
+-    "ia64": "noarch",
++    "ia64": "i686",
+     }
+ 
+ def legitMultiArchesInSameLib(arch=None):
+commit 0fefa1f250e2bf12689d864941752b3f21f2653f
+Author: James Antill <james@and.org>
+Date:   Mon Nov 10 09:37:28 2008 -0500
+
+    Second part of allowing ia64 to use ia64 and i686/etc. on RHEL-5
+
+diff --git a/rpmUtils/arch.py b/rpmUtils/arch.py
+index 3f39150..8e4f956 100644
+--- a/rpmUtils/arch.py
++++ b/rpmUtils/arch.py
+@@ -9,6 +9,7 @@ multilibArches = { "x86_64":  ( "athlon", "x86_64", "athlon" ),
+                    "sparc64": ( "sparc", "sparcv9", "sparc64" ),
+                    "ppc64":   ( "ppc", "ppc", "ppc64" ),
+                    "s390x":   ( "s390", "s390x", "s390" ),
++                   "ia64":    ( "i686", "ia64", "i686" )
+                    }
+ 
+ arches = {

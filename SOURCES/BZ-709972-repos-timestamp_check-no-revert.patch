@@ -1,0 +1,44 @@
+commit c3c7af31dd1ac74d4d672bf5ff8c1dff07b4690a
+Author: James Antill <james@and.org>
+Date:   Tue May 31 16:02:09 2011 -0400
+
+    Fail reverts of repomd.xml when we aren't doing timestamp checks. BZ 665919.
+
+diff --git a/yum/yumRepo.py b/yum/yumRepo.py
+index 6ba058c..cfc6581 100644
+--- a/yum/yumRepo.py
++++ b/yum/yumRepo.py
+@@ -1067,6 +1067,14 @@ class YumRepository(Repository, config.RepoConf):
+ 
+     def _revertOldRepoXML(self):
+         """ If we have older data available, revert to it. """
++
++        #  If we can't do a timestamp check, then we can be looking at a
++        # completely different repo. from last time ... ergo. we can't revert.
++        #  We still want the old data, so we don't download twice. So we
++        # pretend everything is good until the revert.
++        if self.timestamp_check:
++            raise Errors.RepoError, "Can't download or revert repomd.xml"
++
+         if 'old_repo_XML' not in self._oldRepoMDData:
+             self._oldRepoMDData = {}
+             return
+commit 48bbbb72793fac371c31c19f55e689e472031d90
+Author: James Antill <james@and.org>
+Date:   Tue May 31 17:31:24 2011 -0400
+
+    Do the timestamp check the correct way around.
+
+diff --git a/yum/yumRepo.py b/yum/yumRepo.py
+index cfc6581..1568c54 100644
+--- a/yum/yumRepo.py
++++ b/yum/yumRepo.py
+@@ -1072,7 +1072,7 @@ class YumRepository(Repository, config.RepoConf):
+         # completely different repo. from last time ... ergo. we can't revert.
+         #  We still want the old data, so we don't download twice. So we
+         # pretend everything is good until the revert.
+-        if self.timestamp_check:
++        if not self.timestamp_check:
+             raise Errors.RepoError, "Can't download or revert repomd.xml"
+ 
+         if 'old_repo_XML' not in self._oldRepoMDData:

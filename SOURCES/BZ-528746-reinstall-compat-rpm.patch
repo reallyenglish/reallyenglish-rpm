@@ -1,0 +1,450 @@
+commit 5f69b3630113d48704081b338236bcad96d40e26
+Author: James Antill <james@and.org>
+Date:   Mon Jun 8 11:00:26 2009 -0400
+
+    Make the reinstall messages nicer, for remove/install problems
+
+diff --git a/cli.py b/cli.py
+index 588e5e5..5ad4e2b 100644
+--- a/cli.py
++++ b/cli.py
+@@ -688,12 +688,21 @@ class YumBaseCli(yum.YumBase, output.YumOutput):
+ 
+             try:
+                 self.reinstall(pattern=arg)
+-            except yum.Errors.ReinstallError:
++            except yum.Errors.ReinstallRemoveError:
++                self._checkMaybeYouMeant(arg, always_output=False)
++            except yum.Errors.ReinstallInstallError, e:
++                ipkg = self.rpmdb.returnPackages(patterns=[arg])[0]
++                xmsg = ''
++                if 'from_repo' in ipkg.yumdb_info:
++                    xmsg = ipkg.yumdb_info.from_repo
++                    xmsg = _(' (from %s)') % xmsg
+                 self.verbose_logger.log(yum.logginglevels.INFO_2,
+-                                        _('No package %s%s%s available.'),
+-                                        self.term.MODE['bold'], arg,
+-                                        self.term.MODE['normal'])
+-                self._maybeYouMeant(arg)
++                                        _('Installed package %s%s%s%s not available.'),
++                                        self.term.MODE['bold'], ipkg,
++                                        self.term.MODE['normal'], xmsg)
++            except yum.Errors.ReinstallError, e:
++                assert False, "Shouldn't happen, but just in case"
++                self.verbose_logger.log(yum.logginglevels.INFO_2, e)
+         if len(self.tsInfo) > oldcount:
+             return 2, [_('Package(s) to reinstall')]
+         return 0, [_('Nothing to do')]
+diff --git a/yum/Errors.py b/yum/Errors.py
+index 322765e..6f0ffe4 100644
+--- a/yum/Errors.py
++++ b/yum/Errors.py
+@@ -86,6 +86,12 @@ class RemoveError(YumBaseError):
+ class ReinstallError(YumBaseError):
+     pass
+ 
++class ReinstallRemoveError(ReinstallError):
++    pass
++
++class ReinstallInstallError(ReinstallError):
++    pass
++
+ class DowngradeError(YumBaseError):
+     pass
+ 
+diff --git a/yum/__init__.py b/yum/__init__.py
+index 7d9f3b9..2a1e4be 100644
+--- a/yum/__init__.py
++++ b/yum/__init__.py
+@@ -3192,7 +3192,7 @@ class YumBase(depsolve.Depsolve):
+         tx_mbrs = []
+         tx_mbrs.extend(self.remove(po, **kwargs))
+         if not tx_mbrs:
+-            raise Errors.ReinstallError, _("Problem in reinstall: no package matched to remove")
++            raise Errors.ReinstallRemoveError, _("Problem in reinstall: no package matched to remove")
+         templen = len(tx_mbrs)
+         # this is a reinstall, so if we can't reinstall exactly what we uninstalled
+         # then we really shouldn't go on
+@@ -3222,7 +3222,7 @@ class YumBase(depsolve.Depsolve):
+             if len(members) == 0:
+                 self.tsInfo.remove(item.pkgtup)
+                 tx_mbrs.remove(item)
+-                raise Errors.ReinstallError, _("Problem in reinstall: no package matched to install")
++                raise Errors.ReinstallInstallError, _("Problem in reinstall: no package %s matched to install") % item.po
+             new_members.extend(members)
+ 
+         tx_mbrs.extend(new_members)
+commit 6404610bf98924345481667cb1c7c676c5ffe4c7
+Author: James Antill <james@and.org>
+Date:   Fri Jun 12 15:02:44 2009 -0400
+
+     Add tsInfo.addDowngrade().
+      Change makelists() to optionally sort downgrade/reinstall lists out of
+      the install/remove lists.
+      Use new makelists in listTransaction().
+
+diff --git a/output.py b/output.py
+index 7803275..027789c 100755
+--- a/output.py
++++ b/output.py
+@@ -902,7 +902,7 @@ class YumOutput:
+     def listTransaction(self):
+         """returns a string rep of the  transaction in an easy-to-read way."""
+         
+-        self.tsInfo.makelists()
++        self.tsInfo.makelists(True, True)
+         out = u""
+         pkglist_lines = []
+         data  = {'n' : {}, 'v' : {}, 'r' : {}}
+@@ -938,6 +938,8 @@ class YumOutput:
+         for (action, pkglist) in [(_('Installing'), self.tsInfo.installed),
+                             (_('Updating'), self.tsInfo.updated),
+                             (_('Removing'), self.tsInfo.removed),
++                            (_('Reinstalling'), self.tsInfo.reinstalled),
++                            (_('Downgrading'), self.tsInfo.downgraded),
+                             (_('Installing for dependencies'), self.tsInfo.depinstalled),
+                             (_('Updating for dependencies'), self.tsInfo.depupdated),
+                             (_('Removing for dependencies'), self.tsInfo.depremoved)]:
+@@ -994,13 +996,16 @@ class YumOutput:
+         summary = _("""
+ Transaction Summary
+ %s
+-Install  %5.5s Package(s)         
+-Update   %5.5s Package(s)         
+-Remove   %5.5s Package(s)         
++Install   %5.5s Package(s)
++Upgrade   %5.5s Package(s)
++Remove    %5.5s Package(s)
++Reinstall %5.5s Package(s)
++Downgrade %5.5s Package(s)
+ """) % ('=' * self.term.columns,
+         len(self.tsInfo.installed + self.tsInfo.depinstalled),
+         len(self.tsInfo.updated + self.tsInfo.depupdated),
+-        len(self.tsInfo.removed + self.tsInfo.depremoved))
++        len(self.tsInfo.removed + self.tsInfo.depremoved),
++        len(self.tsInfo.reinstalled), len(self.tsInfo.downgraded))
+         out = out + summary
+         
+         return out
+diff --git a/yum/__init__.py b/yum/__init__.py
+index 3341f95..521df12 100644
+--- a/yum/__init__.py
++++ b/yum/__init__.py
+@@ -3378,14 +3378,11 @@ class YumBase(depsolve.Depsolve):
+             na = (po.name, po.arch)
+             if na not in downgrade_apkgs:
+                 continue
+-            itxmbr = self.tsInfo.addErase(po)
+-            atxmbr = self.tsInfo.addInstall(downgrade_apkgs[na])
+-            if not atxmbr: # Fail?
+-                self.tsInfo.remove(itxmbr.pkgtup)
++            txmbrs = self.tsInfo.addDowngrade(downgrade_apkgs[na], po)
++            if not txmbrs: # Fail?
+                 continue
+             self._add_prob_flags(rpm.RPMPROB_FILTER_OLDPACKAGE)
+-            tx_return.append(itxmbr)
+-            tx_return.append(atxmbr)
++            tx_return.extend(txmbrs)
+ 
+         return tx_return
+         
+diff --git a/yum/transactioninfo.py b/yum/transactioninfo.py
+index 05820fa..84dbb4b 100644
+--- a/yum/transactioninfo.py
++++ b/yum/transactioninfo.py
+@@ -63,6 +63,8 @@ class TransactionData:
+         self.depremoved = []
+         self.depinstalled = []
+         self.depupdated = []
++        self.reinstalled = []
++        self.downgraded = []
+         
+     def __len__(self):
+         return len(self.pkgdict)
+@@ -242,7 +244,7 @@ class TransactionData:
+         
+         return False
+                 
+-    def makelists(self):
++    def makelists(self, include_reinstall=False, include_downgrade=False):
+         """returns lists of transaction Member objects based on mode:
+            updated, installed, erased, obsoleted, depupdated, depinstalled
+            deperased"""
+@@ -256,8 +258,18 @@ class TransactionData:
+         self.depremoved = []
+         self.depinstalled = []
+         self.depupdated = []
++        self.reinstalled = []
++        self.downgraded = []
+         self.failed = []
+ 
++        if include_reinstall:
++            pkgtups = {'up' : set(), 'in' : set(), 'rm' : set()}
++            for txmbr in self.getMembers():
++                if txmbr.output_state in (TS_INSTALL, TS_TRUEINSTALL):
++                    pkgtups['in'].add(txmbr.po.pkgtup)
++                if txmbr.output_state ==  TS_ERASE:
++                    pkgtups['rm'].add(txmbr.po.pkgtup)
++
+         for txmbr in self.getMembers():
+             if txmbr.output_state == TS_UPDATE:
+                 if txmbr.isDep:
+@@ -265,7 +277,15 @@ class TransactionData:
+                 else:
+                     self.updated.append(txmbr)
+                     
+-            elif txmbr.output_state == TS_INSTALL or txmbr.output_state == TS_TRUEINSTALL:
++            elif txmbr.output_state in (TS_INSTALL, TS_TRUEINSTALL):
++                if include_reinstall and txmbr.po.pkgtup in pkgtups['rm']:
++                    self.reinstalled.append(txmbr)
++                    continue
++
++                if include_downgrade and txmbr.downgrades:
++                    self.downgraded.append(txmbr)
++                    continue
++
+                 if txmbr.groups:
+                     for g in txmbr.groups:
+                         if g not in self.instgroups:
+@@ -276,6 +296,12 @@ class TransactionData:
+                     self.installed.append(txmbr)
+             
+             elif txmbr.output_state == TS_ERASE:
++                if include_reinstall and txmbr.po.pkgtup in pkgtups['in']:
++                    continue
++
++                if include_downgrade and txmbr.downgraded_by:
++                    continue
++
+                 for g in txmbr.groups:
+                     if g not in self.instgroups:
+                         self.removedgroups.append(g)
+@@ -368,6 +394,23 @@ class TransactionData:
+         self.add(txmbr)
+         return txmbr
+ 
++    def addDowngrade(self, po, oldpo):
++        """adds a package as an downgrade takes a packages object and returns
++           a pair of TransactionMember Objects"""
++
++        itxmbr = self.addErase(oldpo)
++        itxmbr.relatedto.append((po, 'downgradedby'))
++        itxmbr.downgraded_by.append(po)
++
++        atxmbr = self.addInstall(po)
++        if not atxmbr: # Fail?
++            self.remove(itxmbr.pkgtup)
++            return None
++        atxmbr.relatedto.append((oldpo, 'downgrades'))
++        atxmbr.downgrades.append(oldpo)
++
++        return (itxmbr, atxmbr)
++
+     def addUpdated(self, po, updating_po):
+         """adds a package as being updated by another pkg
+            takes a packages object and returns a TransactionMember Object"""
+@@ -544,6 +587,8 @@ class TransactionMember:
+         self.obsoleted_by = []
+         self.updates = []
+         self.updated_by = []
++        self.downgrades = []
++        self.downgraded_by = []
+         self.groups = [] # groups it's in
+         self._poattr = ['pkgtup', 'repoid', 'name', 'arch', 'epoch', 'version',
+                         'release']
+commit 8280987534e7dab0e44c1aae836915fed21db6a2
+Author: James Antill <james@and.org>
+Date:   Thu Aug 20 10:53:33 2009 -0400
+
+     Remove erase transactions on reinstall, fixes BZ 512393.
+    
+     The main problem here is that yum doesn't let a user install blah-1, if
+    blah-1 is already installed ... so we require a remove transaction, and
+    then an install transaction of the same thing.
+     However _rpm_ only wants to see the install transaction, and gets upset
+    with the remove transaction as well (it has an implicit remove as part
+    of the install, and so tries to remove twice).
+    
+     So this fix just removes the "remove transaction" when we add the
+    reinstall "install transaction".
+
+diff --git a/yum/__init__.py b/yum/__init__.py
+index 0df32a3..3f75528 100644
+--- a/yum/__init__.py
++++ b/yum/__init__.py
+@@ -2802,6 +2802,11 @@ class YumBase(depsolve.Depsolve):
+                     self._add_prob_flags(rpm.RPMPROB_FILTER_REPLACEPKG,
+                                          rpm.RPMPROB_FILTER_REPLACENEWFILES,
+                                          rpm.RPMPROB_FILTER_REPLACEOLDFILES)
++                    #  Yum needs the remove to happen before we allow the
++                    # install of the same version. But rpm doesn't like that
++                    # as it then has an install which removes the old version
++                    # and a remove, which also tries to remove the old version.
++                    self.tsInfo.remove(ipkg.pkgtup)
+                     break
+                 if ipkg.verGT(po):
+                     self._add_prob_flags(rpm.RPMPROB_FILTER_OLDPACKAGE)
+commit 1b36ac85cd3482d54cae780da20ee3fc5ca5b496
+Author: James Antill <james@and.org>
+Date:   Thu Aug 20 10:57:16 2009 -0400
+
+    Fix makelists for reinstall, now that we've changed how they happen
+
+diff --git a/yum/transactioninfo.py b/yum/transactioninfo.py
+index 84dbb4b..be772e5 100644
+--- a/yum/transactioninfo.py
++++ b/yum/transactioninfo.py
+@@ -262,14 +262,6 @@ class TransactionData:
+         self.downgraded = []
+         self.failed = []
+ 
+-        if include_reinstall:
+-            pkgtups = {'up' : set(), 'in' : set(), 'rm' : set()}
+-            for txmbr in self.getMembers():
+-                if txmbr.output_state in (TS_INSTALL, TS_TRUEINSTALL):
+-                    pkgtups['in'].add(txmbr.po.pkgtup)
+-                if txmbr.output_state ==  TS_ERASE:
+-                    pkgtups['rm'].add(txmbr.po.pkgtup)
+-
+         for txmbr in self.getMembers():
+             if txmbr.output_state == TS_UPDATE:
+                 if txmbr.isDep:
+@@ -278,7 +270,7 @@ class TransactionData:
+                     self.updated.append(txmbr)
+                     
+             elif txmbr.output_state in (TS_INSTALL, TS_TRUEINSTALL):
+-                if include_reinstall and txmbr.po.pkgtup in pkgtups['rm']:
++                if include_reinstall and self.rpmdb.contains(po=txmbr.po):
+                     self.reinstalled.append(txmbr)
+                     continue
+ 
+@@ -296,9 +288,6 @@ class TransactionData:
+                     self.installed.append(txmbr)
+             
+             elif txmbr.output_state == TS_ERASE:
+-                if include_reinstall and txmbr.po.pkgtup in pkgtups['in']:
+-                    continue
+-
+                 if include_downgrade and txmbr.downgraded_by:
+                     continue
+ 
+commit 3b5782d3fde01601c6961e9f8945802ae9c47e83
+Author: James Antill <james@and.org>
+Date:   Mon Aug 3 18:10:03 2009 -0400
+
+     Allow "yum reinstall *" etc. when we have "extra" packages.
+    
+    The big problem here is that we did:
+    
+    1. Find all removable pacakges matching the pattern.
+    
+    2. Go through and try to reinstall them.
+    
+    ...but the first time we failed on #2, we'd throw an exception leaving
+    the rest of the pacakges from #1 in just a remove state.
+
+diff --git a/yum/__init__.py b/yum/__init__.py
+index e683860..bba2c86 100644
+--- a/yum/__init__.py
++++ b/yum/__init__.py
+@@ -3280,7 +3280,8 @@ class YumBase(depsolve.Depsolve):
+         # this is a reinstall, so if we can't reinstall exactly what we uninstalled
+         # then we really shouldn't go on
+         new_members = []
+-        for item in tx_mbrs:
++        failed = []
++        for item in tx_mbrs[:]:
+             #FIXME future - if things in the rpm transaction handling get
+             # a bit finer-grained, then we should allow reinstalls of kernels
+             # for now, banned and dropped.
+@@ -3305,9 +3306,12 @@ class YumBase(depsolve.Depsolve):
+             if len(members) == 0:
+                 self.tsInfo.remove(item.pkgtup)
+                 tx_mbrs.remove(item)
+-                raise Errors.ReinstallInstallError, _("Problem in reinstall: no package %s matched to install") % item.po
++                failed.append(str(item.po))
++                continue
+             new_members.extend(members)
+ 
++        if failed and not tx_mbrs:
++            raise Errors.ReinstallInstallError, _("Problem in reinstall: no package %s matched to install") % ", ".join(failed)
+         tx_mbrs.extend(new_members)
+         return tx_mbrs
+         
+commit 0bd0bbf9e53e8e304d37bc831d3fd3b652bb8bdb
+Author: James Antill <james@and.org>
+Date:   Mon Sep 14 18:36:05 2009 -0400
+
+    Sort reinstalled and downgraded list from makelists
+
+diff --git a/yum/transactioninfo.py b/yum/transactioninfo.py
+index 63ad574..bd7bf80 100644
+--- a/yum/transactioninfo.py
++++ b/yum/transactioninfo.py
+@@ -320,6 +320,8 @@ class TransactionData:
+         self.depremoved.sort()
+         self.instgroups.sort()
+         self.removedgroups.sort()
++        self.reinstalled.sort()
++        self.downgraded.sort()
+         self.failed.sort()
+ 
+     
+commit 52f1046da18967a05aba2f35e55725d249053918
+Author: James Antill <james@and.org>
+Date:   Fri Jun 12 16:01:37 2009 -0400
+
+    Split the Summary of listTransaction up, so it doesn't have lots of zeros
+
+diff --git a/output.py b/output.py
+index cc4cbb8..7f68dff 100755
+--- a/output.py
++++ b/output.py
+@@ -996,17 +996,26 @@ class YumOutput:
+         summary = _("""
+ Transaction Summary
+ %s
++""") % ('=' * self.term.columns,)
++        out = out + summary
++        num_in = len(self.tsInfo.installed + self.tsInfo.depinstalled)
++        num_up = len(self.tsInfo.updated + self.tsInfo.depupdated)
++        summary = _("""\
+ Install   %5.5s Package(s)
+ Upgrade   %5.5s Package(s)
++""") % (num_in, num_up,)
++        if num_in or num_up: # Always do this?
++            out = out + summary
++        num_rm = len(self.tsInfo.removed + self.tsInfo.depremoved)
++        num_re = len(self.tsInfo.reinstalled)
++        num_dg = len(self.tsInfo.downgraded)
++        summary = _("""\
+ Remove    %5.5s Package(s)
+ Reinstall %5.5s Package(s)
+ Downgrade %5.5s Package(s)
+-""") % ('=' * self.term.columns,
+-        len(self.tsInfo.installed + self.tsInfo.depinstalled),
+-        len(self.tsInfo.updated + self.tsInfo.depupdated),
+-        len(self.tsInfo.removed + self.tsInfo.depremoved),
+-        len(self.tsInfo.reinstalled), len(self.tsInfo.downgraded))
+-        out = out + summary
++""") % (num_rm, num_re, num_dg)
++        if num_rm or num_re or num_dg:
++            out = out + summary
+         
+         return out
+         
+diff -ru yum-3.2.22-orig/cli.py yum-3.2.22/cli.py
+--- yum-3.2.22-orig/cli.py	2010-01-27 13:43:24.000000000 -0500
++++ yum-3.2.22/cli.py	2010-01-27 13:43:58.000000000 -0500
+@@ -688,9 +688,7 @@
+             except yum.Errors.ReinstallInstallError, e:
+                 ipkg = self.rpmdb.returnPackages(patterns=[arg])[0]
+                 xmsg = ''
+-                if 'from_repo' in ipkg.yumdb_info:
+-                    xmsg = ipkg.yumdb_info.from_repo
+-                    xmsg = _(' (from %s)') % xmsg
++                # No yumdb in RHEL-5 atm.
+                 self.verbose_logger.log(yum.logginglevels.INFO_2,
+                                         _('Installed package %s%s%s%s not available.'),
+                                         self.term.MODE['bold'], ipkg,
+Only in yum-3.2.22: cli.py~
